@@ -1,0 +1,11 @@
+{
+  "id": "ID",
+  "name": "Name",
+  "size": "Size",
+  "converted_size": "Converted size",
+  "converted": "Converted",
+  "classified": "Classified",
+  "created_at": "Created at",
+  "files": "Files",
+  "clear_files": "Clear files"
+}
