@@ -1,0 +1,16 @@
+{
+  "locales": ["en", "vi"],
+  "defaultLocale": "en",
+  "pages": {
+    "*": ["common"],
+
+    "/[lang]/(marketing)": ["home"],
+    "/[lang]/login": ["login"],
+
+    "/[lang]/(dashboard)/classify": [
+      "search",
+      "storage-object-data-table",
+      "ws-storage-objects"
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "id": "Mã số",
+  "name": "Tên",
+  "size": "Kích cỡ",
+  "converted_size": "Kích cỡ đã chuyển đổi",
+  "converted": "Đã chuyển đổi",
+  "classified": "Đã phân loại",
+  "created_at": "Ngày tạo",
+  "files": "Tệp tin",
+  "clear_files": "Huỷ tất cả"
+}
