@@ -67,3 +67,45 @@ def image_duplicate(image_files):
 
 # image_duplicate(image_path())
 # image_duplicate(image_path('beds'))
+
+# Image get size function: A function use to get the size of each image in (width, height) formation with unit of pixels, add the part where the function
+# will count the total of images in that size
+def imgSizeList(lists):
+    count1 = 0
+    count2 = 0
+    count3 = 0
+    imageSize = []
+    for item in enumerate(lists):
+        img = Image.open(item[1])
+        imageSize.append(img.size)  
+        if img.size == (224,224):
+            count1 += 1
+        if img.size == (350,350):
+            count2 +=1 
+        if img.size != (224,224):
+            if   img.size != (350,350):
+                count3 +=1
+    print('224x224 pixels: ',count1)
+    print('350x350 pixels: ', count2)
+    print('Other size: ', count3)
+    
+def imgResize(lists, size):
+    for item in enumerate(lists):
+        img = Image.open(item[1])
+        width, height = img.size
+        img1 = img.resize(size, resample = 0)
+        img1.save(item[1],'JPEG')
+        
+def img_dupChecks(lists):
+    count = 0
+    dupli = image_duplicate(lists)
+    for item in dupli:
+        count +=1
+    print("Number of duplicants: ", count)
+    for key in lists:
+        if key in dupli:
+            for duplicated_key in dupli[key]:
+                lists.remove(duplicated_key)
+    print("Duplicants has been removed!")
+    
+    
