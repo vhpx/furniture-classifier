@@ -85,11 +85,27 @@ def imgSizeList(lists):
         if img.size != (224,224):
             if   img.size != (350,350):
                 count3 +=1
-    print('224x224 pixels',count1)
-    print('350x350 pixels', count2)
-    print('Other size', count3)
+    print('224x224 pixels: ',count1)
+    print('350x350 pixels: ', count2)
+    print('Other size: ', count3)
     
-def imgResize(paths):
-    for path in paths:
-        tensorflow.image.resize(paths[path], [224,224])
+def imgResize(lists, size):
+    for item in enumerate(lists):
+        img = Image.open(item[1])
+        width, height = img.size
+        img1 = img.resize(size, resample = 0)
+        img1.save(item[1],'JPEG')
+        
+def img_dupChecks(lists):
+    count = 0
+    dupli = image_duplicate(lists)
+    for item in dupli:
+        count +=1
+    print("Number of duplicants: ", count)
+    for key in lists:
+        if key in dupli:
+            for duplicated_key in dupli[key]:
+                lists.remove(duplicated_key)
+    print("Duplicants has been removed!")
+    
     
