@@ -2,7 +2,8 @@ import os
 import pandas as pd
 import imagehash
 from PIL import Image
-import tqdm
+from tqdm.auto import tqdm
+import tensorflow as tf
 
 
 def image_category(directory):
@@ -26,13 +27,13 @@ def image_style(directory):
 def image_path(directory, category):
     style = image_style(directory)
     image_files = []
-
     for st in style:
         path = f"{directory}/{category}/{st}"
-        for file in os.listdir(path):
-            image_files.append(f"{path}/{file}")
-
-    return image_files
+        with tqdm(total = len(path), desc = "Getting path") as pbar:
+            for file in os.listdir(path):
+                image_files.append(f"{path}/{file}")
+                pbar.update(1)
+        return image_files
 
 
 def compute_hash(image_path):
@@ -45,23 +46,24 @@ def image_duplicate(image_files):
     hashes = {}
     # Dictionary to store duplicates
     duplicates = {}
+    with tqdm(total = len(image_files), desc = "Finding duplicate images") as pbar:
+        for image_file in image_files:
+            hash_value = compute_hash(image_file)
+            if hash_value in hashes:
+                original_file = hashes[hash_value]
+                duplicates.setdefault(original_file, []).append(image_file)
+            else:
+                hashes[hash_value] = image_file
+            pbar.update(1)
 
-    for image_file in image_files:
-        hash_value = compute_hash(image_file)
-        if hash_value in hashes:
-            original_file = hashes[hash_value]
-            duplicates.setdefault(original_file, []).append(image_file)
-        else:
-            hashes[hash_value] = image_file
-
-    # # Print duplicates
-    # for original_file, duplicate_files in duplicates.items():
-    #     print(f"Original: {original_file}")
-    #     print("Duplicates:")
-    #     for file in duplicate_files:
-    #         print(file)
-    #     print()
-    return duplicates
+        # # Print duplicates
+        # for original_file, duplicate_files in duplicates.items():
+        #     print(f"Original: {original_file}")
+        #     print("Duplicates:")
+        #     for file in duplicate_files:
+        #         print(file)
+        #     print()
+        return duplicates
 
 
 # image_duplicate(image_path())
@@ -75,27 +77,40 @@ def imgSizeList(lists):
     count2 = 0
     count3 = 0
     imageSize = []
-    for item in enumerate(lists):
-        img = Image.open(item[1])
-        imageSize.append(img.size)
-        if img.size == (224, 224):
-            count1 += 1
-        if img.size == (350, 350):
-            count2 += 1
-        if img.size != (224, 224):
-            if img.size != (350, 350):
-                count3 += 1
+    with tqdm(total = len(lists), desc = "Getting image size") as pbar:
+        for item in enumerate(lists):
+            img = Image.open(item[1])
+            imageSize.append(img.size)
+            if img.size == (224, 224):
+                count1 += 1
+            if img.size == (350, 350):
+                count2 += 1
+            if img.size != (224, 224):
+                if img.size != (350, 350):
+                    count3 += 1
+            pbar.update(1)        
     print("224x224 pixels: ", count1)
     print("350x350 pixels: ", count2)
     print("Other size: ", count3)
+    return imageSize
 
 
 def imgResize(lists, size):
-    for item in enumerate(lists):
-        img = Image.open(item[1])
-        width, height = img.size
-        img1 = img.resize(size, resample=0)
-        img1.save(item[1], "JPEG")
+    with tqdm(total = len(lists), desc = "Resizing images") as pbar:
+        for item in enumerate(lists):
+            img = Image.open(item[1])
+            img1 = img.resize(size, resample=0)
+            img1.save(item[1], "JPEG")
+            pbar.update(1)
+        
+def img_resize(lists):
+    with tqdm(total = len(lists), desc = "Resizing images") as pbar:
+        for item in lists:
+            img = tf.io.read(item[1])
+            img = tf.image.decode_jpeg(img)
+            img1 = tf.image.resize(img, [224,224])
+            tf.keras.utils.save_img(item[1],img1)
+            pbar.update(1)
 
 
 def img_dupChecks(lists):
