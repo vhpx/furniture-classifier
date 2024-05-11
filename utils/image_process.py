@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import imagehash
 from PIL import Image
+import tqdm
 
 
 
@@ -77,6 +78,7 @@ def imgSizeList(lists):
     imageSize = []
     for item in enumerate(lists):
         img = Image.open(item[1])
+        width, height = img.size
         imageSize.append(img.size)  
         if img.size == (224,224):
             count1 += 1
@@ -88,6 +90,8 @@ def imgSizeList(lists):
     print('224x224 pixels: ',count1)
     print('350x350 pixels: ', count2)
     print('Other size: ', count3)
+    return imageSize            
+    
     
 def imgResize(lists, size):
     for item in enumerate(lists):
