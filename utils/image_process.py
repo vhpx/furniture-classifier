@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import imagehash
 from PIL import Image
+from collections import defaultdict, Counter
 from tqdm.auto import tqdm
 import tensorflow as tf
 
@@ -41,84 +42,49 @@ def compute_hash(image_path):
 
 def image_duplicate(image_files):
     hashes = {}
-    # Dictionary to store duplicates
-    duplicates = {}
-    with tqdm(total=len(image_files), desc="Finding duplicate images") as pbar:
-        for image_file in image_files:
-            hash_value = compute_hash(image_file)
-            if hash_value in hashes:
-                original_file = hashes[hash_value]
-                duplicates.setdefault(original_file, []).append(image_file)
-            else:
-                hashes[hash_value] = image_file
-            pbar.update(1)
-
-        # # Print duplicates
-        # for original_file, duplicate_files in duplicates.items():
-        #     print(f"Original: {original_file}")
-        #     print("Duplicates:")
-        #     for file in duplicate_files:
-        #         print(file)
-        #     print()
-        return duplicates
+    duplicates = defaultdict(list)
+    for image_file in tqdm(
+        (compute_hash(image_file) for image_file in image_files),
+        total=len(image_files),
+        desc="Finding duplicate images",
+    ):
+        if image_file in hashes:
+            original_file = hashes[image_file]
+            duplicates[original_file].append(image_file)
+        else:
+            hashes[image_file] = image_file
+    return duplicates
 
 
-# image_duplicate(image_path())
-# image_duplicate(image_path('beds'))
-
-
-# Image get size function: A function use to get the size of each image in (width, height) formation with unit of pixels, add the part where the function
-# will count the total of images in that size
 def imgSizeList(lists):
-    count1 = 0
-    count2 = 0
-    count3 = 0
     imageSize = []
+    size_counter = Counter()
     with tqdm(total=len(lists), desc="Getting image size") as pbar:
-        for item in enumerate(lists):
-            img = Image.open(item[1])
-            imageSize.append(img.size)
-            if img.size == (224, 224):
-                count1 += 1
-            if img.size == (350, 350):
-                count2 += 1
-            if img.size != (224, 224):
-                if img.size != (350, 350):
-                    count3 += 1
+        for item in lists:
+            with Image.open(item) as img:
+                size = img.size
+                imageSize.append(size)
+                size_counter[size] += 1
             pbar.update(1)
-    print("224x224 pixels: ", count1)
-    print("350x350 pixels: ", count2)
-    print("Other size: ", count3)
+    print("224x224 pixels: ", size_counter[(224, 224)])
+    print("350x350 pixels: ", size_counter[(350, 350)])
+    print(
+        "Other size: ", len(lists) - size_counter[(224, 224)] - size_counter[(350, 350)]
+    )
     return imageSize
 
 
 def imgResize(lists, size):
     with tqdm(total=len(lists), desc="Resizing images") as pbar:
-        for item in enumerate(lists):
-            img = Image.open(item[1])
-            img1 = img.resize(size, resample=0)
-            img1.save(item[1], "JPEG")
-            pbar.update(1)
-
-
-def img_resize(lists):
-    with tqdm(total=len(lists), desc="Resizing images") as pbar:
         for item in lists:
-            img = tf.io.read(item[1])
-            img = tf.image.decode_jpeg(img)
-            img1 = tf.image.resize(img, [224, 224])
-            tf.keras.utils.save_img(item[1], img1)
+            with Image.open(item) as img:
+                img1 = img.resize(size, resample=0)
+                img1.save(item, "JPEG")
             pbar.update(1)
 
 
 def img_dupChecks(lists):
-    count = 0
     dupli = image_duplicate(lists)
-    for item in dupli:
-        count += 1
-    print("Number of duplicants: ", count)
-    for key in lists:
-        if key in dupli:
-            for duplicated_key in dupli[key]:
-                lists.remove(duplicated_key)
+    print("Number of duplicants: ", len(dupli))
+    lists[:] = [item for item in lists if item not in dupli]
     print("Duplicants has been removed!")

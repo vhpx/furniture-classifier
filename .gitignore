@@ -1,2 +1,5 @@
-data/datasets/
 __pycache__/
+
+# Raw dataset
+Furniture_Data.zip
+data/datasets/raw
