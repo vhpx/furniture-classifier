@@ -1,3 +1,5 @@
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/vhpx/furniture-classifier/blob/main/pipeline.ipynb)
+
 # Furniture Classification
 
 ## Introduction
