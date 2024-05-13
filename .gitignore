@@ -1,5 +1,5 @@
 __pycache__/
 
 # Raw dataset
+data/datasets
 Furniture_Data.zip
-data/datasets/raw
