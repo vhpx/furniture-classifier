@@ -16,23 +16,20 @@ def image_category(directory):
 
 
 def image_style(directory):
-    style_list = pd.DataFrame(os.listdir(f"{directory}/beds"), columns=["Style"])
-    for i in style_list["Style"].values:
-        if i == ".DS_Store" or i == "README.txt":
-            style_list.drop(style_list[style_list["Style"] == i].index, inplace=True)
-    style_list.reset_index(drop=True, inplace=True)
-    return style_list["Style"].values
+    style_list = os.listdir(f"{directory}/beds")
+    style_list = [i for i in style_list if i not in [".DS_Store", "README.txt"]]
+    return style_list
 
 
 def image_path(directory, category):
     style = image_style(directory)
     image_files = []
-    for st in style:
-        path = f"{directory}/{category}/{st}"
-        with tqdm(total=len(path), desc="Getting path") as pbar:
+    with tqdm(total=len(style), desc="Getting path") as pbar:
+        for st in style:
+            path = f"{directory}/{category}/{st}"
             for file in os.listdir(path):
                 image_files.append(f"{path}/{file}")
-                pbar.update(1)
+            pbar.update(1)
     return image_files
 
 

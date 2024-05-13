@@ -1,7 +1,8 @@
 pandas
 numpy
 matplotlib
-tensorflow<2.11
+tensorflow
+tensorflow_hub
 seaborn
 scikit-learn
 setuptools
