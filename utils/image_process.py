@@ -29,11 +29,11 @@ def image_path(directory, category):
     image_files = []
     for st in style:
         path = f"{directory}/{category}/{st}"
-        with tqdm(total = len(path), desc = "Getting path") as pbar:
+        with tqdm(total=len(path), desc="Getting path") as pbar:
             for file in os.listdir(path):
                 image_files.append(f"{path}/{file}")
                 pbar.update(1)
-        return image_files
+    return image_files
 
 
 def compute_hash(image_path):
@@ -46,7 +46,7 @@ def image_duplicate(image_files):
     hashes = {}
     # Dictionary to store duplicates
     duplicates = {}
-    with tqdm(total = len(image_files), desc = "Finding duplicate images") as pbar:
+    with tqdm(total=len(image_files), desc="Finding duplicate images") as pbar:
         for image_file in image_files:
             hash_value = compute_hash(image_file)
             if hash_value in hashes:
@@ -77,7 +77,7 @@ def imgSizeList(lists):
     count2 = 0
     count3 = 0
     imageSize = []
-    with tqdm(total = len(lists), desc = "Getting image size") as pbar:
+    with tqdm(total=len(lists), desc="Getting image size") as pbar:
         for item in enumerate(lists):
             img = Image.open(item[1])
             imageSize.append(img.size)
@@ -88,7 +88,7 @@ def imgSizeList(lists):
             if img.size != (224, 224):
                 if img.size != (350, 350):
                     count3 += 1
-            pbar.update(1)        
+            pbar.update(1)
     print("224x224 pixels: ", count1)
     print("350x350 pixels: ", count2)
     print("Other size: ", count3)
@@ -96,20 +96,21 @@ def imgSizeList(lists):
 
 
 def imgResize(lists, size):
-    with tqdm(total = len(lists), desc = "Resizing images") as pbar:
+    with tqdm(total=len(lists), desc="Resizing images") as pbar:
         for item in enumerate(lists):
             img = Image.open(item[1])
             img1 = img.resize(size, resample=0)
             img1.save(item[1], "JPEG")
             pbar.update(1)
-        
+
+
 def img_resize(lists):
-    with tqdm(total = len(lists), desc = "Resizing images") as pbar:
+    with tqdm(total=len(lists), desc="Resizing images") as pbar:
         for item in lists:
             img = tf.io.read(item[1])
             img = tf.image.decode_jpeg(img)
-            img1 = tf.image.resize(img, [224,224])
-            tf.keras.utils.save_img(item[1],img1)
+            img1 = tf.image.resize(img, [224, 224])
+            tf.keras.utils.save_img(item[1], img1)
             pbar.update(1)
 
 
