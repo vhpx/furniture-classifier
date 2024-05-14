@@ -4,7 +4,7 @@ import importlib
 import tensorflow as tf
 
 
-def reload_custom_libaries():
+def reload_custom_libraries():
     modules_for_refresh = [
         "utils.cache",
         "utils.image_process",
