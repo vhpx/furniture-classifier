@@ -148,3 +148,5 @@ def prepare_data_for_training(dir_path):
     # Save the results to the cache file at the end of the function
     with open(cache_file, "wb") as f:
         pickle.dump((train_dir, val_dir, test_dir), f)
+
+    return None
