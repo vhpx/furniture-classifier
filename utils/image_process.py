@@ -10,8 +10,6 @@ import matplotlib.pyplot as plt
 from tensorflow.keras import layers
 
 
-
-
 def image_category(directory):
     cat_list = pd.DataFrame(os.listdir(directory), columns=["Category"])
     for i in cat_list["Category"].values:
@@ -84,23 +82,20 @@ def imgResize(lists, size):
         for item in lists:
             img = Image.open(item)
             img1 = img.resize(size, resample=0)
-            img1.save(item, 'JPEG')
-            pbar.update(1)      
+            img1.save(item, "JPEG")
+            pbar.update(1)
+
 
 def img_dupChecks(lists):
     dupli = image_duplicate(lists)
     print("Number of duplicants: ", len(dupli))
     lists[:] = [item for item in lists if item not in dupli]
     print("Duplicants has been removed!")
-    
+
 
 data_process = tf.keras.preprocessing.image.ImageDataGenerator(
-                fill_mode='nearest',
-                horizontal_flip=True,
-                vertical_flip=True,
-                rescale= 1./255
-                )
-
+    fill_mode="nearest", horizontal_flip=True, vertical_flip=True, rescale=1.0 / 255
+)
 
 
 def img_augment(lists):
@@ -113,7 +108,13 @@ def img_augment(lists):
             x = tf.keras.preprocessing.image.img_to_array(image)
             x = x.reshape((1,) + x.shape)
             i = 0
-            for batch in data_process.flow(x, batch_size = 1, save_to_dir = new_save, save_prefix= "Augment", save_format= "jpg" ):
+            for batch in data_process.flow(
+                x,
+                batch_size=1,
+                save_to_dir=new_save,
+                save_prefix="Augment",
+                save_format="jpg",
+            ):
                 i += 1
                 if i > 20:
                     break
