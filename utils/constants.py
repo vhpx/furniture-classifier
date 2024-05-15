@@ -26,7 +26,9 @@ TRAIN_SIZE = 1 - TEST_SIZE - EVAL_SIZE
 DEFAULT_DIR = "/content" if ENVIRONMENT == "GOOGLE_COLAB" else "."
 
 DATA_DIR = f"{DEFAULT_DIR}/data"
+UTILS_DIR = f"{DEFAULT_DIR}/utils"
 DATASET_DIR = f"{DATA_DIR}/datasets"
+ZIPPED_RESOURCES_DIR = f"{DATA_DIR}/zipped"
 
 # Caching
 CACHE_DIR = f"{DATA_DIR}/cache"
@@ -36,6 +38,10 @@ DATASET_CACHE_DIR = f"{CACHE_DIR}/datasets"
 TRAIN_DATA_DIR = f"{DATASET_DIR}/raw"
 CLEANED_TRAIN_DATA_DIR = f"{DATASET_DIR}/cleaned"
 PROCESSED_TRAIN_DATA_DIR = f"{DATASET_DIR}/processed"
+
+TRAIN_DATA_CSV = f"{DATASET_DIR}/raw.csv"
+CLEANED_TRAIN_DATA_CSV = f"{DATASET_DIR}/cleaned.csv"
+PROCESSED_TRAIN_DATA_CSV = f"{DATASET_DIR}/processed.csv"
 
 # Set path to cache visualizations and models
 VISUALIZATION_DIR = f"{CACHE_DIR}/visualizations"
