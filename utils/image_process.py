@@ -10,8 +10,6 @@ import matplotlib.pyplot as plt
 from tensorflow.keras import layers
 
 
-
-
 def image_category(directory):
     cat_list = pd.DataFrame(os.listdir(directory), columns=["Category"])
     for i in cat_list["Category"].values:
@@ -79,47 +77,44 @@ def imgSizeList(lists):
     return imageSize
 
 
-def imgResize(lists, size, save_dir):
+def imgResize(lists, size):
     with tqdm(total=len(lists), desc="Resizing images") as pbar:
         for item in lists:
-            img_path = os.path.split(item)
-            img_path1 = os.path.split(img_path[0])
-            img_path2 = os.path.split(img_path1[0])
-            save_path = os.path.join(save_dir, img_path2[1] ,img_path1[1],img_path[1])
             img = Image.open(item)
             img1 = img.resize(size, resample=0)
-            img1.save(save_path, 'JPEG')
-            pbar.update(1)      
+            img1.save(item, "JPEG")
+            pbar.update(1)
+
 
 def img_dupChecks(lists):
     dupli = image_duplicate(lists)
     print("Number of duplicants: ", len(dupli))
     lists[:] = [item for item in lists if item not in dupli]
     print("Duplicants has been removed!")
-    
+
 
 data_process = tf.keras.preprocessing.image.ImageDataGenerator(
-                fill_mode='nearest',
-                horizontal_flip=True,
-                vertical_flip=True,
-                rescale= 1./255
-                )
+    fill_mode="nearest", horizontal_flip=True, vertical_flip=True, rescale=1.0 / 255
+)
 
 
-
-def img_augment(lists, save_dir):
+def img_augment(lists):
     with tqdm(total=len(lists), desc="Resizing images") as pbar:
         for item in lists:
             image = item
-            img_path = os.path.split(item)
-            img_path1 = os.path.split(img_path[0])
-            img_path2 = os.path.split(img_path1[0])
-            new_save = os.path.join(save_dir, img_path2[1], img_path1[1], img_path[1])
+            save_path = os.path.split(image)
+            new_save = save_path[0]
             image = tf.keras.preprocessing.image.load_img(image)
             x = tf.keras.preprocessing.image.img_to_array(image)
             x = x.reshape((1,) + x.shape)
             i = 0
-            for batch in data_process.flow(x, batch_size = 1, save_to_dir = new_save, save_prefix= "Augment", save_format= "jpg" ):
+            for batch in data_process.flow(
+                x,
+                batch_size=1,
+                save_to_dir=new_save,
+                save_prefix="Augment",
+                save_format="jpg",
+            ):
                 i += 1
                 if i > 20:
                     break
