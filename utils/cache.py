@@ -22,12 +22,10 @@ def reload_custom_libraries():
 
     for module in modules_for_refresh:
         try:
+            importlib.import_module(module)
             if module in sys.modules:
                 importlib.reload(sys.modules[module])
-                logging.info(f"Reloaded {module}")
-            else:
-                importlib.import_module(module)
-                logging.info(f"Imported {module}")
+            logging.info(f"Reloaded {module}")
         except ImportError:
             unfound_modules.append(module)
             logging.error(f"Failed to import {module}")
