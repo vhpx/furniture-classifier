@@ -79,12 +79,16 @@ def imgSizeList(lists):
     return imageSize
 
 
-def imgResize(lists, size):
+def imgResize(lists, size, save_dir):
     with tqdm(total=len(lists), desc="Resizing images") as pbar:
         for item in lists:
+            img_path = os.path.split(item)
+            img_path1 = os.path.split(img_path[0])
+            img_path2 = os.path.split(img_path1[0])
+            save_path = os.path.join(save_dir, img_path2[1] ,img_path1[1],img_path[1])
             img = Image.open(item)
             img1 = img.resize(size, resample=0)
-            img1.save(item, 'JPEG')
+            img1.save(save_path, 'JPEG')
             pbar.update(1)      
 
 def img_dupChecks(lists):
@@ -103,12 +107,14 @@ data_process = tf.keras.preprocessing.image.ImageDataGenerator(
 
 
 
-def img_augment(lists):
+def img_augment(lists, save_dir):
     with tqdm(total=len(lists), desc="Resizing images") as pbar:
         for item in lists:
             image = item
-            save_path = os.path.split(image)
-            new_save = save_path[0]
+            img_path = os.path.split(item)
+            img_path1 = os.path.split(img_path[0])
+            img_path2 = os.path.split(img_path1[0])
+            new_save = os.path.join(save_dir, img_path2[1], img_path1[1], img_path[1])
             image = tf.keras.preprocessing.image.load_img(image)
             x = tf.keras.preprocessing.image.img_to_array(image)
             x = x.reshape((1,) + x.shape)
