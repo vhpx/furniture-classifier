@@ -12,6 +12,7 @@ def reload_custom_libraries():
         "utils.cache",
         "utils.zipper",
         "utils.constants",
+        "utils.constants_colab",
         "utils.converter",
         "utils.image_process",
     ]

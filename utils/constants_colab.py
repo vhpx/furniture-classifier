@@ -1,4 +1,4 @@
-ENVIRONMENT = "LOCAL"
+ENVIRONMENT = "GOOGLE_COLAB"
 
 # Recommended to set to True if the data has changed,
 # otherwise set to "False" to save time
