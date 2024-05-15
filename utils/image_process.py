@@ -140,13 +140,13 @@ def process_style_images(category, image_list, style):
     return cleaned_image_sizes
 
 
-def process_images(image_list, category):
+def process_images(image_list, category, cache_dir):
     styles = get_category_styles(TRAIN_DATA_DIR, category)
 
     delete_unknown_style_images(image_list, styles)
 
     image_sizes, size_counter = get_image_sizes(
-        image_list, cache_file=f"{TRAIN_DATA_DIR}/{category}_image_sizes.pkl"
+        image_list, cache_file=f"{cache_dir}/{category}_image_sizes.pkl"
     )
 
     for size, count in size_counter.items():
@@ -164,11 +164,11 @@ def process_images(image_list, category):
     return image_sizes
 
 
-def imgResize(data, category, size):
-    styles = get_category_styles(CLEANED_TRAIN_DATA_DIR, category)
+def resize_images(data, category, size):
+    styles = get_category_styles(TRAIN_DATA_DIR, category)
     for style in styles:
         try:
-            image_list = data[category][style]
+            image_list = [path for path in data[category]["paths"] if style in path]
         except KeyError:
             print(
                 f"Style '{style}' not found in category '{category}'. Skipping this style."
@@ -208,11 +208,12 @@ def imgResize(data, category, size):
     return data
 
 
-def img_augment(data, category):
-    styles = get_category_styles(CLEANED_TRAIN_DATA_DIR, category)
+def augment_images(data, category):
+    styles = get_category_styles(TRAIN_DATA_DIR, category)
     for style in styles:
         try:
-            image_list = data[category][style]
+            # Change the way we access the image paths
+            image_list = [path for path in data[category]["paths"] if style in path]
         except KeyError:
             print(
                 f"Style '{style}' not found in category '{category}'. Skipping this style."
