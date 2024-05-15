@@ -8,6 +8,10 @@ BYPASS_CACHE = False
 # from the source (Zip file), otherwise set to False to save time
 FORCE_UNZIP = False
 
+# Recommended to set to an empty array ([]) to avoid retraining models,
+# in case you want to retrain any model, add the model name to the array
+MODELS_TO_RETRAIN = []
+
 # Set the random seed for reproducibility
 RANDOM_SEED = 42
 
