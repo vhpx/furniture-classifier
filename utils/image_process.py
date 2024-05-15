@@ -5,7 +5,7 @@ import pandas as pd
 import imagehash
 from PIL import Image
 from collections import defaultdict, Counter
-from tqdm.auto import tqdm
+from tqdm.notebook import tqdm
 import tensorflow as tf
 import logging
 import random
@@ -214,55 +214,236 @@ def resize_images(data, category, size):
     return data
 
 
-def augment_images(data, category):
-    styles = get_category_styles(DATASET_DIR, category)
-    for style in styles:
-        try:
-            # Change the way we access the image paths
-            image_list = [path for path in data[category]["paths"] if style in path]
-        except KeyError:
-            print(
-                f"Style '{style}' not found in category '{category}'. Skipping this style."
+def get_majority_class(data):
+    """
+    Identifies the majority class in the dataset and returns its name and count.
+
+    Args:
+        data (dict): Dictionary containing image paths and sizes for each category.
+
+    Returns:
+        tuple: A tuple containing the name of the majority class and its count.
+    """
+    class_counts = {category: len(items["paths"]) for category, items in data.items()}
+    majority_class = max(class_counts, key=class_counts.get)
+    return majority_class, class_counts[majority_class]
+
+
+def identify_minority_classes(data, threshold_ratio=0.8):
+    """
+    Identifies minority classes in the dataset based on a threshold ratio compared to the majority class.
+
+    Args:
+        data (dict): Dictionary containing image paths and sizes for each category.
+        threshold_ratio (float, optional): The ratio below which a class is considered a minority. Defaults to 0.8.
+
+    Returns:
+        list: A list of minority class names.
+    """
+    class_counts = {category: len(items["paths"]) for category, items in data.items()}
+    max_count = max(class_counts.values())
+    minority_classes = [
+        category
+        for category, count in class_counts.items()
+        if count / max_count < threshold_ratio
+    ]
+    return minority_classes
+
+
+def calculate_category_oversampling(data, minority_classes, target_count=None):
+    """
+    Calculates the number of images to be augmented for each category.
+
+    Args:
+        data (dict): Dictionary containing image paths and sizes for each category.
+        minority_classes (list): List of minority class names.
+        target_count (int, optional): Target number of images per minority class. If None, matches the majority class count.
+
+    Returns:
+        dict: Dictionary where the keys are the category names and the values are the number of images to be augmented.
+    """
+    if target_count is None:
+        class_counts = {
+            category: len(items["paths"]) for category, items in data.items()
+        }
+        majority_class = max(class_counts, key=class_counts.get)
+        target_count = class_counts[majority_class]
+
+    oversampling = {
+        category: max(0, target_count - len(data[category]["paths"]))
+        for category in minority_classes
+    }
+
+    return oversampling
+
+
+def calculate_style_oversampling(data, minority_classes, target_count=None):
+    """Calculates the number of images to augment for each style within each category."""
+    oversampling = {}
+
+    if target_count is None:
+        all_style_counts = []
+        for category in data:
+            style_counts = Counter(
+                os.path.dirname(path).split("/")[-1] for path in data[category]["paths"]
             )
-            continue
-        save_dir = f"{PROCESSED_DATASET_DIR}/{category}/{style}"
-        cache_file = f"{save_dir}/augmented_images.pkl"
-        if os.path.isfile(cache_file):
-            with open(cache_file, "rb") as f:
-                augmented_images = pickle.load(f)
-            print(
-                f"Loaded augmented images from cache for category '{category}', style '{style}'."
-            )
-        else:
-            augmented_images = []
-            with tqdm(total=len(image_list), desc="Augmenting images") as pbar:
-                for item in image_list:
-                    img_path = os.path.split(item)
-                    img_path1 = os.path.split(img_path[0])
-                    img_path2 = os.path.split(img_path1[0])
-                    save_path = os.path.join(
-                        save_dir, img_path2[1], img_path1[1], img_path[1]
-                    )
-                    os.makedirs(os.path.dirname(save_path), exist_ok=True)
-                    image = tf.keras.preprocessing.image.load_img(item)
-                    x = tf.keras.preprocessing.image.img_to_array(image)
-                    x = x.reshape((1,) + x.shape)
-                    i = 0
-                    for batch in tf.keras.preprocessing.image.ImageDataGenerator().flow(
-                        x,
-                        batch_size=1,
-                        save_to_dir=os.path.dirname(save_path),
-                        save_prefix="Augment",
-                        save_format="jpg",
-                    ):
-                        i += 1
-                        if i > 20:
-                            break
-                    augmented_images.append(save_path)
-                    pbar.update(1)
-            with open(cache_file, "wb") as f:
-                pickle.dump(augmented_images, f)
-            print(
-                f"Saved augmented images to cache for category '{category}', style '{style}'."
-            )
+            all_style_counts.extend(style_counts.values())
+        target_count = max(all_style_counts)
+
+    for category in minority_classes:
+        style_counts = Counter(
+            os.path.dirname(path).split("/")[-1] for path in data[category]["paths"]
+        )
+        oversampling[category] = {
+            style: max(0, target_count - count) for style, count in style_counts.items()
+        }
+
+    return oversampling
+
+
+def delete_augmented_files(directory):
+    """Deletes all files in a directory that start with 'aug_' and returns the number of deleted files and affected directories."""
+    deleted_files_count = 0
+    affected_directories = set()
+
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            if file.startswith("aug_"):
+                file_path = os.path.join(root, file)
+                os.remove(file_path)
+                deleted_files_count += 1
+                affected_directories.add(root)
+
+    print(
+        f"Deleted {deleted_files_count} files from {len(affected_directories)} directories."
+    )
+    print("Affected directories:")
+    for directory in affected_directories:
+        print(directory)
+
+
+def augment_images(data, category, style, num_augmentations=2):
+    """Augments images of a specific style within a category."""
+    datagen = tf.keras.preprocessing.image.ImageDataGenerator(
+        rotation_range=20,
+        width_shift_range=0.2,
+        height_shift_range=0.2,
+        zoom_range=0.2,
+        shear_range=0.2,
+        horizontal_flip=True,
+        fill_mode="nearest",
+    )
+
+    image_list = [
+        path
+        for path in data[category]["paths"]
+        if style in path and CLEANED_DATASET_DIR in path
+    ]
+
+    save_dir = f"{PROCESSED_DATASET_DIR}/{category}/{style}"
+    os.makedirs(save_dir, exist_ok=True)
+    augmented_images = []
+
+    # Count the number of existing augmentations
+    existing_augmentations = len(
+        [name for name in os.listdir(save_dir) if name.startswith("aug_")]
+    )
+    num_augmentations -= existing_augmentations
+
+    if num_augmentations > 0:
+        augmentations_per_image = num_augmentations // len(image_list)
+        remaining_augmentations = num_augmentations % len(image_list)
+
+        # Calculate the starting image index
+        start_image_index = existing_augmentations // (augmentations_per_image + 1)
+
+        # Initialize tqdm progress bar with leave=False
+        pbar = tqdm(
+            total=num_augmentations,
+            desc=f"Augmenting images for '{category}/{style}'",
+            leave=False,
+        )
+
+        for i, image_path in enumerate(image_list[start_image_index:]):
+            num_augmentations_for_this_image = augmentations_per_image
+            if i < remaining_augmentations:
+                num_augmentations_for_this_image += 1
+
+            for _ in range(num_augmentations_for_this_image):
+                img = tf.keras.preprocessing.image.load_img(image_path)
+                x = tf.keras.preprocessing.image.img_to_array(img)
+                x = x.reshape((1,) + x.shape)
+
+                augmented_img = datagen.flow(x, batch_size=1)[0][0]
+                augmented_img_path = os.path.join(
+                    save_dir,
+                    f"aug_{os.path.basename(image_path)}_{existing_augmentations}.jpg",
+                )
+
+                tf.keras.preprocessing.image.save_img(augmented_img_path, augmented_img)
+                augmented_images.append(augmented_img_path)
+
+                existing_augmentations += 1
+
+                # Update the progress bar
+                pbar.update(1)
+
+        # Close the progress bar
+        pbar.close()
+
+    # Update the data dictionary with the augmented image paths
+    data[category]["paths"].extend(augmented_images)
+
+    return data  # Return the updated data dictionary
+
+
+def oversample_minority_classes(data, minority_classes, verbose=True):
+    """
+    Oversamples minority classes using data augmentation to reach a target count or match the majority class.
+
+    Args:
+        data (dict): Dictionary containing image paths and sizes for each category.
+        minority_classes (list): List of minority class names.
+        verbose (bool, optional): Whether to display a progress bar. Defaults to True.
+
+    Returns:
+        dict: Updated data dictionary with oversampled minority classes.
+    """
+    cache_file = os.path.join(PROCESSED_DATASET_DIR, "oversample_cache.pkl")
+    if os.path.exists(cache_file):
+        with open(cache_file, "rb") as f:
+            cache = pickle.load(f)
+    else:
+        cache = {}
+
+    style_counts = calculate_style_oversampling(data, minority_classes)
+
+    total_images_to_augment = sum(
+        sum(counts.values()) for counts in style_counts.values()
+    )
+
+    if verbose:
+        pbar = tqdm(total=total_images_to_augment, desc="Oversampling minority classes")
+    else:
+        pbar = None
+
+    for category in minority_classes:
+        if category not in cache:
+            cache[category] = []
+
+        for style, count in style_counts[category].items():
+            if count > 0:
+                data = augment_images(data, category, style, num_augmentations=count)
+                cache[category].extend(data[category]["paths"])
+
+                # Update the progress bar immediately after the augmentations are created
+                if pbar is not None:
+                    pbar.update(count)
+
+    if pbar is not None:
+        pbar.close()
+
+    with open(cache_file, "wb") as f:
+        pickle.dump(cache, f)
+
     return data

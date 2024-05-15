@@ -1,5 +1,9 @@
 ENVIRONMENT = "LOCAL"
 
+# Set to True if you want to train all models,
+# otherwise set to False to save time
+TRAIN_ALL_MODELS = False
+
 # Recommended to set to an empty array ([]) to avoid retraining models,
 # in case you want to retrain any model, add the model name to the array
 MODELS_TO_RETRAIN = []
