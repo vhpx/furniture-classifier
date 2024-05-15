@@ -1,8 +1,8 @@
-ENVIRONMENT = "LOCAL"
+ENVIRONMENT = "GOOGLE_COLAB"
 
 # Recommended to set to an empty array ([]) to avoid retraining models,
 # in case you want to retrain any model, add the model name to the array
-MODELS_TO_RETRAIN = []
+MODELS_TO_RETRAIN = ["task_1_CNN_model.h5"]
 
 # Recommended to set to True if the data has changed,
 # otherwise set to "False" to save time
