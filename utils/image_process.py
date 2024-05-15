@@ -104,16 +104,17 @@ data_process = tf.keras.preprocessing.image.ImageDataGenerator(
 
 
 def img_augment(lists):
-  image = random.choice(lists)
-  save_path = os.path.split(image)
-  new_save = save_path[0]
-  print(new_save)
-  image = tf.keras.preprocessing.image.load_img(image)
-  x = tf.keras.preprocessing.image.img_to_array(image)
-  x = x.reshape((1,) + x.shape)
-  i = 0
-  for batch in data_process.flow(x, batch_size = 1, save_to_dir = new_save, save_prefix= "Augment", save_format= "jpg" ):
-    i += 1
-    if i > 20:
-      break
-            
+    with tqdm(total=len(lists), desc="Resizing images") as pbar:
+        for item in lists:
+            image = item
+            save_path = os.path.split(image)
+            new_save = save_path[0]
+            image = tf.keras.preprocessing.image.load_img(image)
+            x = tf.keras.preprocessing.image.img_to_array(image)
+            x = x.reshape((1,) + x.shape)
+            i = 0
+            for batch in data_process.flow(x, batch_size = 1, save_to_dir = new_save, save_prefix= "Augment", save_format= "jpg" ):
+                i += 1
+                if i > 20:
+                    break
+            pbar.update(1)
