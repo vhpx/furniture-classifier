@@ -7,6 +7,7 @@ from PIL import Image
 from collections import defaultdict, Counter
 from tqdm.auto import tqdm
 import tensorflow as tf
+import logging
 import random
 import matplotlib.pyplot as plt
 from tensorflow.keras import layers
@@ -15,6 +16,8 @@ from utils.constants import (
     CLEANED_TRAIN_DATA_DIR,
     PROCESSED_TRAIN_DATA_DIR,
 )
+
+logging.basicConfig(level=logging.INFO)
 
 
 def get_category_styles(directory, category):
@@ -170,7 +173,7 @@ def resize_images(data, category, size):
         try:
             image_list = [path for path in data[category]["paths"] if style in path]
         except KeyError:
-            print(
+            logging.warning(
                 f"Style '{style}' not found in category '{category}'. Skipping this style."
             )
             continue
@@ -178,12 +181,15 @@ def resize_images(data, category, size):
         if os.path.isfile(cache_file):
             with open(cache_file, "rb") as f:
                 resized_images = pickle.load(f)
-            print(
-                f"Loaded resized images from cache for category '{category}', style '{style}'."
+            logging.info(
+                f"Loaded {len(resized_images)} resized images from cache for category '{category}', style '{style}'."
             )
         else:
             resized_images = []
-            with tqdm(total=len(image_list), desc="Resizing images") as pbar:
+            with tqdm(
+                total=len(image_list),
+                desc=f"Resizing images for '{category}/{style}'",
+            ) as pbar:
                 for item in image_list:
                     with Image.open(item) as img:
                         img1 = img.resize(size, resample=0)
@@ -202,8 +208,8 @@ def resize_images(data, category, size):
                     pbar.update(1)
             with open(cache_file, "wb") as f:
                 pickle.dump(resized_images, f)
-            print(
-                f"Saved resized images to cache for category '{category}', style '{style}'."
+            logging.info(
+                f"Saved {len(resized_images)} resized images to cache for category '{category}', style '{style}'."
             )
     return data
 
