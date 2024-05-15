@@ -12,9 +12,9 @@ import random
 import matplotlib.pyplot as plt
 from tensorflow.keras import layers
 from utils.constants import (
-    TRAIN_DATA_DIR,
-    CLEANED_TRAIN_DATA_DIR,
-    PROCESSED_TRAIN_DATA_DIR,
+    DATASET_DIR,
+    CLEANED_DATASET_DIR,
+    PROCESSED_DATASET_DIR,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -109,7 +109,7 @@ def get_image_sizes(image_list, cache_file="image_sizes.pkl"):
 
 
 def process_style_images(category, image_list, style):
-    cleaned_dir = os.path.join(CLEANED_TRAIN_DATA_DIR, category, style)
+    cleaned_dir = os.path.join(CLEANED_DATASET_DIR, category, style)
     cleaned_image_sizes_cache_file = f"{cleaned_dir}/cleaned_image_sizes.pkl"
 
     if os.path.exists(cleaned_dir) and os.listdir(cleaned_dir):
@@ -144,7 +144,7 @@ def process_style_images(category, image_list, style):
 
 
 def process_images(image_list, category, cache_dir):
-    styles = get_category_styles(TRAIN_DATA_DIR, category)
+    styles = get_category_styles(DATASET_DIR, category)
 
     delete_unknown_style_images(image_list, styles)
 
@@ -168,7 +168,7 @@ def process_images(image_list, category, cache_dir):
 
 
 def resize_images(data, category, size):
-    styles = get_category_styles(TRAIN_DATA_DIR, category)
+    styles = get_category_styles(DATASET_DIR, category)
     for style in styles:
         try:
             image_list = [path for path in data[category]["paths"] if style in path]
@@ -177,7 +177,7 @@ def resize_images(data, category, size):
                 f"Style '{style}' not found in category '{category}'. Skipping this style."
             )
             continue
-        cache_file = f"{PROCESSED_TRAIN_DATA_DIR}/{category}/{style}/resized_images.pkl"
+        cache_file = f"{PROCESSED_DATASET_DIR}/{category}/{style}/resized_images.pkl"
         if os.path.isfile(cache_file):
             with open(cache_file, "rb") as f:
                 resized_images = pickle.load(f)
@@ -197,7 +197,7 @@ def resize_images(data, category, size):
                         img_path1 = os.path.split(img_path[0])
                         img_path2 = os.path.split(img_path1[0])
                         save_path = os.path.join(
-                            PROCESSED_TRAIN_DATA_DIR,
+                            PROCESSED_DATASET_DIR,
                             img_path2[1],
                             img_path1[1],
                             img_path[1],
@@ -215,7 +215,7 @@ def resize_images(data, category, size):
 
 
 def augment_images(data, category):
-    styles = get_category_styles(TRAIN_DATA_DIR, category)
+    styles = get_category_styles(DATASET_DIR, category)
     for style in styles:
         try:
             # Change the way we access the image paths
@@ -225,7 +225,7 @@ def augment_images(data, category):
                 f"Style '{style}' not found in category '{category}'. Skipping this style."
             )
             continue
-        save_dir = f"{PROCESSED_TRAIN_DATA_DIR}/{category}/{style}"
+        save_dir = f"{PROCESSED_DATASET_DIR}/{category}/{style}"
         cache_file = f"{save_dir}/augmented_images.pkl"
         if os.path.isfile(cache_file):
             with open(cache_file, "rb") as f:

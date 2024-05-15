@@ -1,4 +1,5 @@
 import os
+import pickle
 import shutil
 import pandas as pd
 import numpy as np
@@ -48,6 +49,14 @@ def prepare_data_for_training(dir_path):
     train_dir = os.path.join(base_dir, "train")
     val_dir = os.path.join(base_dir, "val")
     test_dir = os.path.join(base_dir, "test")
+
+    # Define the cache file path
+    cache_file = os.path.join(base_dir, "cache.pkl")
+
+    # If the cache file exists, load the results from it
+    if os.path.exists(cache_file):
+        with open(cache_file, "rb") as f:
+            return pickle.load(f)
 
     # Clean directories if they exist
     print("Cleaning directories...")
@@ -135,3 +144,7 @@ def prepare_data_for_training(dir_path):
 
     # Close progress bar
     pbar.close()
+
+    # Save the results to the cache file at the end of the function
+    with open(cache_file, "wb") as f:
+        pickle.dump((train_dir, val_dir, test_dir), f)
