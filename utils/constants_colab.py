@@ -1,13 +1,5 @@
 ENVIRONMENT = "GOOGLE_COLAB"
 
-# Set to True if you want to train all models,
-# otherwise set to False to save time
-TRAIN_ALL_MODELS = False
-
-# Recommended to set to an empty array ([]) to avoid retraining models,
-# in case you want to retrain any model, add the model name to the array
-MODELS_TO_RETRAIN = ["task_1_CNN_model.h5"]
-
 # Recommended to set to True if the data has changed,
 # otherwise set to "False" to save time
 BYPASS_CACHE = False
@@ -35,7 +27,7 @@ ROOT_DATASET_DIR = f"{DATA_DIR}/datasets"
 ZIPPED_RESOURCES_DIR = f"{DATA_DIR}/zipped"
 
 # Caching
-CACHE_DIR = f"{DATA_DIR}/cache"
+CACHE_DIR = f"{DEFAULT_DIR}/cache"
 DATASET_CACHE_DIR = f"{CACHE_DIR}/datasets"
 
 # Datasets
