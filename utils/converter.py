@@ -3,7 +3,7 @@ import pickle
 import shutil
 import pandas as pd
 import numpy as np
-from tqdm.auto import tqdm
+from tqdm.notebook import tqdm
 from sklearn.model_selection import train_test_split
 import logging
 
@@ -24,6 +24,7 @@ def convert_to_df(directory, save_path):
         and i not in [".DS_Store", "README.txt"]
     ]
 
+    valid_extensions = [".jpg", ".png", ".jpeg"]
     data = []
     with tqdm(total=len(cat_list), desc="Converting to DataFrame") as pbar:
         for cat in cat_list:
@@ -33,7 +34,12 @@ def convert_to_df(directory, save_path):
                 category_path = f"{directory}/{cat}/{style}"
                 for image_name in os.listdir(category_path):
                     full_path = f"{category_path}/{image_name}"
-                    data.append([image_name, cat, style, category_path, full_path])
+                    # Check if the image file exists and has a valid extension before appending the data
+                    if (
+                        os.path.isfile(full_path)
+                        and os.path.splitext(full_path)[1] in valid_extensions
+                    ):
+                        data.append([image_name, cat, style, category_path, full_path])
             pbar.update(1)
     df = pd.DataFrame(
         data, columns=["Image_Name", "Category", "Style", "Category_Path", "Full_Path"]
@@ -150,3 +156,33 @@ def prepare_data_for_training(dir_path):
         pickle.dump((train_dir, val_dir, test_dir), f)
 
     return None
+
+
+# def convert_categories_to_styles(root_dir, output_dir):
+#     # Each category has multiple styles
+#     # extract the styles from the category and make it style-first
+#     categories = os.listdir(root_dir)
+#     for category in tqdm(categories, desc="Processing categories"):
+#         category_dir = os.path.join(root_dir, category)
+#         # Check if category_dir is a directory before listing its contents
+#         if os.path.isdir(category_dir):
+#             styles = os.listdir(category_dir)
+#             for style in tqdm(
+#                 styles, desc=f"Processing styles in {category}", leave=False
+#             ):
+#                 style_dir = os.path.join(category_dir, style)
+#                 images = os.listdir(style_dir)
+#                 for image in tqdm(
+#                     images, desc=f"Processing images in {style}", leave=False
+#                 ):
+#                     # Skip .pkl files
+#                     if not image.endswith(".pkl"):
+#                         destination = os.path.join(output_dir, style, image)
+#                         # Check if the destination file already exists before copying
+#                         if not os.path.exists(destination):
+#                             # Create the destination directory if it does not exist
+#                             os.makedirs(os.path.join(output_dir, style), exist_ok=True)
+#                             shutil.copy(
+#                                 os.path.join(style_dir, image),
+#                                 destination,
+#                             )

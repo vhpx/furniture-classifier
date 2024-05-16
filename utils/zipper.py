@@ -90,3 +90,12 @@ def read_file(file_path):
 def write_file(file_path, content):
     with open(file_path, "w") as file:
         file.write(content)
+
+
+def copy_dir(source_dir: str, destination_dir: str) -> None:
+    """Copy the directory to a new location."""
+    if os.path.isdir(source_dir):
+        shutil.copytree(source_dir, destination_dir)
+        print(f"Directory {source_dir} copied to {destination_dir}.")
+    else:
+        print(f"Directory {source_dir} does not exist. Skipping copy.")
