@@ -3,6 +3,7 @@ __pycache__/
 # Raw dataset
 data/install.txt
 data/datasets
+data/cache
 
 # Zipped dataset
 Furniture_Data.zip

@@ -32,19 +32,20 @@ def get_category_styles(directory, category):
 def get_category_image_paths(directory, category):
     styles = get_category_styles(directory, category)
     image_files = []
-    with tqdm(
-        total=len(styles), desc=f"Getting image path for category '{category}'"
-    ) as pbar:
-        for style in styles:
-            path = f"{directory}/{category}/{style}"
-            image_files.extend(
-                [
-                    f"{path}/{file}"
-                    for file in os.listdir(path)
-                    if file.lower().endswith((".png", ".jpg", ".jpeg"))
-                ]
-            )
-            pbar.update(1)
+    if styles:  # Check if styles list is not empty
+        with tqdm(
+            total=len(styles), desc=f"Getting image path for category '{category}'"
+        ) as pbar:
+            for style in styles:
+                path = f"{directory}/{category}/{style}"
+                image_files.extend(
+                    [
+                        f"{path}/{file}"
+                        for file in os.listdir(path)
+                        if file.lower().endswith((".png", ".jpg", ".jpeg"))
+                    ]
+                )
+                pbar.update(1)
     return image_files
 
 
