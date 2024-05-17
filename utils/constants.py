@@ -27,7 +27,11 @@ ROOT_DATASET_DIR = f"{DATA_DIR}/datasets"
 ZIPPED_RESOURCES_DIR = f"{DATA_DIR}/zipped"
 
 # Caching
-CACHE_DIR = f"{DEFAULT_DIR}/cache"
+CACHE_DIR = (
+    f"{GOOGLE_DRIVE_ROOT_DIR}/cache"
+    if ENVIRONMENT == "GOOGLE_COLAB"
+    else f"{DEFAULT_DIR}/cache"
+)
 DATASET_CACHE_DIR = f"{CACHE_DIR}/datasets"
 
 # Datasets
@@ -41,7 +45,11 @@ PROCESSED_TRAIN_DATA_CSV = f"{ROOT_DATASET_DIR}/processed.csv"
 
 # Set path to cache visualizations and models
 VISUALIZATION_DIR = f"{CACHE_DIR}/visualizations"
-MODEL_DIR = f"{CACHE_DIR}/models"
+MODEL_DIR = (
+    f"{GOOGLE_DRIVE_ROOT_DIR}/Models"
+    if ENVIRONMENT == "GOOGLE_COLAB"
+    else f"{CACHE_DIR}/models"
+)
 MACOS_DIR = f"{ROOT_DATASET_DIR}/__MACOSX"
 
 # Path to raw dataset
