@@ -4,6 +4,7 @@ __pycache__/
 data/install.txt
 data/datasets
 data/cache
+data/temp
 cache/
 
 # Zipped dataset
