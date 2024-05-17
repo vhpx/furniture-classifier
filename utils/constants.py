@@ -26,6 +26,9 @@ UTILS_DIR = f"{DEFAULT_DIR}/utils"
 ROOT_DATASET_DIR = f"{DATA_DIR}/datasets"
 ZIPPED_RESOURCES_DIR = f"{DATA_DIR}/zipped"
 
+GOOGLE_DRIVE_DIR = f"{DEFAULT_DIR}/drive"
+GOOGLE_DRIVE_ROOT_DIR = f"{GOOGLE_DRIVE_DIR}/MyDrive"
+
 # Caching
 CACHE_DIR = (
     f"{GOOGLE_DRIVE_ROOT_DIR}/cache"
@@ -51,10 +54,6 @@ MODEL_DIR = (
     else f"{CACHE_DIR}/models"
 )
 MACOS_DIR = f"{ROOT_DATASET_DIR}/__MACOSX"
-
-# Path to raw dataset
-GOOGLE_DRIVE_DIR = f"{DEFAULT_DIR}/drive"
-GOOGLE_DRIVE_ROOT_DIR = f"{GOOGLE_DRIVE_DIR}/MyDrive"
 
 # Zipped resources for accelerated Google Colab training
 RAW_DATASET_ZIP_FILE = "Furniture_Data.zip"
