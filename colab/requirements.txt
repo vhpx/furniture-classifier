@@ -1,0 +1,13 @@
+pandas
+numpy
+matplotlib
+tensorflow<2.11
+tensorflow_hub
+seaborn
+scikit-learn
+setuptools
+joblib
+IPython
+imagehash
+ipywidgets
+tqdm

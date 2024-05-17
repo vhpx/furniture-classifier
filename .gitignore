@@ -7,7 +7,13 @@ data/cache
 data/temp
 cache/
 
+# Colab
+colab/model_training_data.zip
+colab/cache/
+colab/data/
+
 # Zipped dataset
+model_training_data.zip
 Furniture_Data.zip
 data/datasets.zip
 datasets.zip
