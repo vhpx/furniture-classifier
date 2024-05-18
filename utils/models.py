@@ -17,50 +17,44 @@ def load_best_model_from_checkpoint(
     environment,
     root_dir,
 ):
-    save_dir = f"{root_dir}/{model_conf['save_dir']}"
+    save_dir = os.path.join(root_dir, model_conf["save_dir"])
+    base_model_file_path = os.path.join(save_dir, "epoch_")
+    csv_logger_path = os.path.join(save_dir, "training_log.csv")
 
-    base_model_file_path = f"{save_dir}/epoch_"
-    csv_logger_path = f"{save_dir}/training_log.csv"
+    os.makedirs(save_dir, exist_ok=True)
 
-    print(f"Checking if model directory exists at {root_dir}...")
-    if environment == "LOCAL" and not os.path.exists(root_dir):
-        print(f"Creating directory {root_dir}...")
-        os.makedirs(root_dir)
+    model_files = os.listdir(save_dir)
 
-    current_save_dir = f"{save_dir}" if environment == "LOCAL" else f"{save_dir}"
+    if not os.path.exists(csv_logger_path):
+        print("Warning: No training log file found. Using initial model.")
+        return initial_model, 0, base_model_file_path, csv_logger_path
 
-    print(f"Checking if current save directory exists at {current_save_dir}...")
-    if not os.path.exists(current_save_dir):
-        print(f"Creating directory {current_save_dir}...")
-        os.makedirs(current_save_dir)
+    log = pd.read_csv(csv_logger_path)
+    epoch_val_accuracy = log[["epoch", "val_accuracy"]].values
 
-    print(f"Listing all files in the model directory {current_save_dir}...")
-    model_files = os.listdir(current_save_dir)
-    print(f"Found {len(model_files)} model files in {current_save_dir}.")
+    # Sort by validation accuracy and then by epoch number
+    epoch_val_accuracy = epoch_val_accuracy[(-epoch_val_accuracy[:, 1]).argsort()]
 
-    print("Reading training log and creating a list of tuples (epoch, val_accuracy)...")
-    with open(csv_logger_path, "r") as f:
-        reader = csv.reader(f)
-        log = list(reader)
-    epoch_val_accuracy = [
-        (int(row[0]), float(row[log[0].index("val_accuracy")])) for row in log[1:]
-    ]
-
-    print(
-        "Sorting the list in descending order based on validation accuracy, and then epoch number..."
-    )
-    epoch_val_accuracy.sort(key=lambda x: (-x[1], -x[0]))
-
-    print("Iterating over the sorted list to find the best model...")
     for epoch, val_accuracy in epoch_val_accuracy:
-        model_file = f"epoch_{epoch}.h5"
-        if model_file in model_files:
-            print(f"Loading model from {current_save_dir}/{model_file}...")
-            model = load_model(f"{current_save_dir}/{model_file}")
-            print(f"Starting epoch: {epoch}")
+        # Convert epoch to integer
+        epoch = int(epoch)
+
+        # Check for both possible naming conventions
+        model_file_1 = f"epoch_{epoch}.h5"
+        model_file_2 = f"epoch_{epoch}_va_{val_accuracy:.4f}.h5"
+
+        if model_file_1 in model_files:
+            model_path = os.path.join(save_dir, model_file_1)
+            model = load_model(model_path)
+            print(f"Loaded model from {model_path}")
+            return model, epoch, base_model_file_path, csv_logger_path
+        elif model_file_2 in model_files:
+            model_path = os.path.join(save_dir, model_file_2)
+            model = load_model(model_path)
+            print(f"Loaded model from {model_path}")
             return model, epoch, base_model_file_path, csv_logger_path
 
-    print("No model file found. Using initial model.")
+    print("Warning: No model file found. Using initial model.")
     return initial_model, 0, base_model_file_path, csv_logger_path
 
 
@@ -81,8 +75,8 @@ def get_best_model(root_dir, search_term=None):
 
         # Sort the model files by their epoch numbers in descending order
         model_files = sorted(
-            (f for f in os.listdir(dirpath) if re.search(r"epoch_(\d+).h5", f)),
-            key=lambda f: int(re.search(r"epoch_(\d+).h5", f).group(1)),
+            (f for f in filenames if re.search(r"epoch_(\d+)(_va(\d+\.\d+))?.h5", f)),
+            key=lambda f: int(re.search(r"epoch_(\d+)(_va(\d+\.\d+))?.h5", f).group(1)),
             reverse=True,
         )
 
@@ -100,15 +94,16 @@ def get_best_model(root_dir, search_term=None):
             print(f"No valid model files in {dirpath}. Skipping...")
             continue
 
-        # Extract the epoch number from the file name and use it as the starting epoch
-        start_epoch = int(re.search(r"epoch_(\d+).h5", model_file).group(1))
+        # Extract the epoch number and validation accuracy from the file name
+        match = re.search(r"epoch_(\d+)(_va(\d+\.\d+))?.h5", model_file)
+        start_epoch = int(match.group(1))
+        val_accuracy = (
+            float(match.group(3))
+            if match.group(3)
+            else get_best_val_accuracy(os.path.join(dirpath, "training_log.csv"))
+        )
         print(f"Starting epoch: {start_epoch}")
-
-        csv_logger_path = os.path.join(dirpath, "training_log.csv")
-
-        # Get the best validation accuracy from the current directory
-        val_accuracy = get_best_val_accuracy(csv_logger_path)
-        print(f"Best validation accuracy in this directory: {val_accuracy}")
+        print(f"Validation accuracy: {val_accuracy}")
 
         # If this model is better than the current best model, update the best model and its validation accuracy
         if val_accuracy > best_val_accuracy:
@@ -144,6 +139,69 @@ def get_best_val_accuracy(csv_logger_path):
     print(f"Best validation accuracy found: {best_val_accuracy}")
 
     return best_val_accuracy
+
+
+class CustomModelCheckpoint(tf.keras.callbacks.Callback):
+    def __init__(
+        self,
+        filepath,
+        monitor="val_accuracy",
+        verbose=0,
+        save_best_only=False,
+        mode="max",
+    ):
+        super(CustomModelCheckpoint, self).__init__()
+        self.filepath = filepath
+        self.monitor = monitor
+        self.verbose = verbose
+        self.save_best_only = save_best_only
+        self.mode = mode
+        if mode == "min":
+            self.monitor_op = np.less
+            self.best = np.Inf
+        elif mode == "max":
+            self.monitor_op = np.greater
+            self.best = -np.Inf
+
+    def on_epoch_end(self, epoch, logs=None):
+        current = logs.get(self.monitor)
+        if current is None:
+            warnings.warn(
+                "Can save best model only with %s available, skipping." % self.monitor,
+                RuntimeWarning,
+            )
+        else:
+            if self.save_best_only:
+                if self.monitor_op(current, self.best):
+                    if self.verbose > 0:
+                        print(
+                            "\nEpoch %05d: %s improved from %0.5f to %0.5f, saving model to %s"
+                            % (
+                                epoch + 1,
+                                self.monitor,
+                                self.best,
+                                current,
+                                self.filepath.format(epoch=epoch, val_accuracy=current),
+                            )
+                        )
+                    self.best = current
+                    self.model.save(
+                        self.filepath.format(epoch=epoch, val_accuracy=current),
+                        overwrite=True,
+                    )
+            else:
+                if self.verbose > 0:
+                    print(
+                        "\nEpoch %05d: saving model to %s"
+                        % (
+                            epoch + 1,
+                            self.filepath.format(epoch=epoch, val_accuracy=current),
+                        )
+                    )
+                self.model.save(
+                    self.filepath.format(epoch=epoch, val_accuracy=current),
+                    overwrite=True,
+                )
 
 
 def train_model(
@@ -204,14 +262,12 @@ def train_model(
     )
 
     # Define the checkpoint
-    checkpoint = ModelCheckpoint(
-        filepath=f"{base_model_file_path}{{epoch}}.h5",
+    checkpoint = CustomModelCheckpoint(
+        filepath=f"{base_model_file_path}{{epoch}}_va_{{val_accuracy:.4f}}.h5",
         monitor="val_accuracy",
         verbose=1,
         save_best_only=True,
-        save_weights_only=False,
         mode="max",
-        save_freq="epoch",
     )
 
     print("Computing class weights...")
