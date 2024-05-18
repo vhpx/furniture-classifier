@@ -10,6 +10,7 @@ from typing import Optional
 def reload_custom_libraries():
     modules_for_refresh = [
         "utils.cache",
+        "utils.models",
         "utils.zipper",
         "utils.constants",
         "utils.constants_colab",

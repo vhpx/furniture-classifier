@@ -8,16 +8,6 @@ BYPASS_CACHE = False
 # from the source (Zip file), otherwise set to False to save time
 FORCE_UNZIP = False
 
-# Set the random seed for reproducibility
-RANDOM_SEED = 42
-
-# Set the test and evaluation sizes
-TEST_SIZE = 0.2
-EVAL_SIZE = 0.1
-
-# Calculate the train size
-TRAIN_SIZE = 1 - TEST_SIZE - EVAL_SIZE
-
 # Set global directories
 DEFAULT_DIR = "/content" if ENVIRONMENT == "GOOGLE_COLAB" else "."
 

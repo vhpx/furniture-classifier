@@ -1,4 +1,4 @@
-ENVIRONMENT = "GOOGLE_COLAB"
+ENVIRONMENT = "KAGGLE"
 
 # Recommended to set to True if the data has changed,
 # otherwise set to "False" to save time
@@ -9,7 +9,11 @@ BYPASS_CACHE = False
 FORCE_UNZIP = False
 
 # Set global directories
-DEFAULT_DIR = "/content" if ENVIRONMENT == "GOOGLE_COLAB" else "."
+DEFAULT_DIR = (
+    "/kaggle/working"
+    if ENVIRONMENT == "KAGGLE"
+    else "/content" if ENVIRONMENT == "GOOGLE_COLAB" else "."
+)
 
 DATA_DIR = f"{DEFAULT_DIR}/data"
 UTILS_DIR = f"{DEFAULT_DIR}/utils"

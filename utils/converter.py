@@ -156,33 +156,3 @@ def prepare_data_for_training(dir_path):
         pickle.dump((train_dir, val_dir, test_dir), f)
 
     return None
-
-
-# def convert_categories_to_styles(root_dir, output_dir):
-#     # Each category has multiple styles
-#     # extract the styles from the category and make it style-first
-#     categories = os.listdir(root_dir)
-#     for category in tqdm(categories, desc="Processing categories"):
-#         category_dir = os.path.join(root_dir, category)
-#         # Check if category_dir is a directory before listing its contents
-#         if os.path.isdir(category_dir):
-#             styles = os.listdir(category_dir)
-#             for style in tqdm(
-#                 styles, desc=f"Processing styles in {category}", leave=False
-#             ):
-#                 style_dir = os.path.join(category_dir, style)
-#                 images = os.listdir(style_dir)
-#                 for image in tqdm(
-#                     images, desc=f"Processing images in {style}", leave=False
-#                 ):
-#                     # Skip .pkl files
-#                     if not image.endswith(".pkl"):
-#                         destination = os.path.join(output_dir, style, image)
-#                         # Check if the destination file already exists before copying
-#                         if not os.path.exists(destination):
-#                             # Create the destination directory if it does not exist
-#                             os.makedirs(os.path.join(output_dir, style), exist_ok=True)
-#                             shutil.copy(
-#                                 os.path.join(style_dir, image),
-#                                 destination,
-#                             )
