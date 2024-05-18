@@ -100,11 +100,11 @@ def train_model(
 
     # Callbacks
     early_stopping = EarlyStopping(
-        monitor="loss", patience=early_stopping_patience, restore_best_weights=True
+        monitor="val_loss", patience=early_stopping_patience, restore_best_weights=True
     )
     csv_logger = CSVLogger(csv_logger_path, append=True)
     reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
-        monitor="loss", factor=0.2, patience=learning_rate_patience, min_lr=0.00001
+        monitor="val_loss", factor=0.2, patience=learning_rate_patience, min_lr=0.00001
     )
 
     # Define the checkpoint
@@ -112,9 +112,9 @@ def train_model(
         filepath=f"{base_model_file_path}{{epoch}}.h5",
         monitor="val_accuracy",
         verbose=1,
-        save_best_only=False,
+        save_best_only=True,
         save_weights_only=False,
-        mode="auto",
+        mode="max",
         save_freq="epoch",
     )
 
