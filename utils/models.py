@@ -41,7 +41,7 @@ def load_best_model_from_checkpoint(
         epoch = int(epoch)
 
         # Check for both possible naming conventions
-        model_file_1 = f"epoch_{epoch}.h5"
+        model_file_1 = f"epoch_{epoch+1}.h5"
         model_file_2 = f"epoch_{epoch}_va_{val_accuracy:.4f}.h5"
 
         if model_file_1 in model_files:
