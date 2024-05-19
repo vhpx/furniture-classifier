@@ -23,3 +23,7 @@ data/zipped
 task_1_q*.ipynb
 task_2_q*.ipynb
 task_3_q*.ipynb
+
+# Embeddings
+combined_embeddings.npy
+embedding_index_mapping.npy
