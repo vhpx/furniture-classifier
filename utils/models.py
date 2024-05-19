@@ -1,17 +1,52 @@
 import os
-import csv
-import tensorflow as tf
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras import layers, Sequential, models
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, CSVLogger
-from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from sklearn.utils.class_weight import compute_class_weight
+from tensorflow.keras import layers, Sequential, models
+from tensorflow.keras.models import load_model
+from tensorflow.keras.utils import Sequence
+from tqdm.notebook import tqdm
+import keras.backend as K
+import tensorflow as tf
 import pandas as pd
 import numpy as np
 import warnings
 import fnmatch
 import re
 import csv
+
+
+def find_best_model(directories):
+    best_model = None
+    best_accuracy = float("-inf")
+
+    for directory in directories:
+        eval_file = os.path.join(directory, "evaluation.csv")
+        if not os.path.exists(eval_file):
+            raise FileNotFoundError(f"evaluation.csv not found in {directory}")
+
+        df = pd.read_csv(eval_file)
+        df = df.sort_values(by="accuracy", ascending=False)
+
+        for _, row in df.iterrows():
+            model_path = row["path"]
+            if os.path.exists(model_path):
+                if row["accuracy"] > best_accuracy:
+                    best_model = model_path
+                    best_accuracy = row["accuracy"]
+                break
+
+    if best_model is None:
+        raise FileNotFoundError("No valid model found")
+
+    model = load_model(best_model, compile=False)
+    model.compile(
+        optimizer="adam",
+        loss="categorical_crossentropy",
+        metrics=["accuracy"],
+    )
+
+    return model
 
 
 def evaluate_models(model_dir, test_generator, sample_fraction):
@@ -395,3 +430,165 @@ def train_model(
     # Evaluate the model on the test set
     test_loss, test_acc = model.evaluate(test_generator)
     print(f"Test loss: {test_loss}, Test accuracy: {test_acc}")
+
+
+def get_combined_embedding(
+    images, category_embedding_model, style_embedding_model, batch_size=32
+):
+    category_embeddings = category_embedding_model.predict(
+        images, batch_size=batch_size, verbose=0
+    )
+
+    style_embeddings = style_embedding_model.predict(
+        images, batch_size=batch_size, verbose=0
+    )
+
+    return np.concatenate([category_embeddings, style_embeddings], axis=-1)
+
+
+def get_combined_embeddings(
+    generator,
+    category_embedding_model,
+    style_embedding_model,
+    batch_size=32,
+    return_index_mapping=False,
+    cache_file="combined_embeddings.npy",
+):
+    if os.path.exists(cache_file):
+        if return_index_mapping:
+            return np.load(cache_file, allow_pickle=True)
+        else:
+            return np.load(cache_file, allow_pickle=True)[0]
+
+    all_embeddings = []
+    image_paths = []  # Store image paths for mapping
+
+    for batch_idx in tqdm(range(len(generator)), desc="Generating embeddings"):
+        batch_images, _ = generator[batch_idx]
+        batch_embeddings = get_combined_embedding(
+            batch_images, category_embedding_model, style_embedding_model, batch_size
+        )
+        all_embeddings.extend(batch_embeddings)
+        image_paths.extend(
+            generator.filenames[batch_idx * batch_size : (batch_idx + 1) * batch_size]
+        )  # Get paths from generator
+
+    # Create the mapping from image paths to embedding indices
+    embedding_index_mapping = {path: i for i, path in enumerate(image_paths)}
+
+    if return_index_mapping:
+        np.save(cache_file, all_embeddings)  # Save embeddings separately
+        np.save("embedding_index_mapping.npy", embedding_index_mapping)
+        return np.array(all_embeddings), embedding_index_mapping
+    else:
+        result = np.array(all_embeddings)
+        np.save(cache_file, result, allow_pickle=True)
+        return result
+
+
+def multi_task_contrastive_loss(
+    y_true, y_pred, margin=1.0, category_weight=0.5, style_weight=0.5
+):
+    # Cast y_true to float32
+    y_true = K.cast(y_true, dtype="float32")
+
+    category_loss = K.mean(
+        y_true[:, 0] * K.square(y_pred[:, 0])
+        + (1 - y_true[:, 0]) * K.square(K.maximum(margin - y_pred[:, 0], 0))
+    )
+
+    style_loss = K.mean(
+        y_true[:, 1] * K.square(y_pred[:, 1])
+        + (1 - y_true[:, 1]) * K.square(K.maximum(margin - y_pred[:, 1], 0))
+    )
+
+    total_loss = category_weight * category_loss + style_weight * style_loss
+    return total_loss
+
+
+def create_image_pairs(df, num_pairs_per_class=100):
+    pairs = []
+    labels = []
+
+    unique_labels = df["Label"].unique()
+    for label in tqdm(unique_labels, desc="Creating image pairs"):
+        category, style = label.split(",")
+
+        similar_group = df[(df["Category"] == category) & (df["Style"] == style)]
+        dissimilar_group = df[
+            ((df["Category"] != category) | (df["Style"] != style))
+            & (df["Label"] != label)
+        ]
+
+        # Check sample sizes
+        num_pairs = min(num_pairs_per_class, len(similar_group), len(dissimilar_group))
+        if num_pairs < 2:
+            continue  # Skip to the next label if not enough samples
+
+        # Positive Pairs (same category AND same style)
+        for i in range(num_pairs - 1):
+            for j in range(i + 1, num_pairs):
+                pairs.append(
+                    (
+                        similar_group.iloc[i]["Full_Path"],
+                        similar_group.iloc[j]["Full_Path"],
+                    )
+                )
+                labels.append([1, 1])
+
+        # Negative Pairs (different category OR different style)
+        for _ in range(num_pairs):
+            pair = (
+                np.random.choice(similar_group["Full_Path"], 1)[0],
+                np.random.choice(dissimilar_group["Full_Path"], 1)[0],
+            )
+            pairs.append(pair)
+            if (
+                pair[0].split(",")[0] == pair[1].split(",")[0]
+            ):  # Same category, different style
+                labels.append([1, 0])
+            else:  # Different category, same or different style
+                labels.append([0, 0])
+
+    return np.array(pairs), np.array(labels)
+
+
+class SiameseDataGenerator(Sequence):
+    def __init__(
+        self,
+        image_pairs,
+        labels,
+        batch_size,
+        embeddings,
+        embedding_index_mapping,
+        augmentation_params=None,
+    ):
+        self.image_pairs = image_pairs
+        self.labels = labels
+        self.batch_size = batch_size
+        self.embeddings = embeddings
+        self.embedding_index_mapping = embedding_index_mapping
+        if augmentation_params is not None:
+            self.datagen = ImageDataGenerator(**augmentation_params)
+        else:
+            self.datagen = ImageDataGenerator()
+
+    def __len__(self):
+        return int(np.ceil(len(self.image_pairs) / float(self.batch_size)))
+
+    def __getitem__(self, idx):
+        batch_pairs = self.image_pairs[
+            idx * self.batch_size : (idx + 1) * self.batch_size
+        ]
+        batch_labels = self.labels[idx * self.batch_size : (idx + 1) * self.batch_size]
+        batch_labels = np.reshape(batch_labels, (-1, 2))
+
+        left_indices = [
+            self.embedding_index_mapping[path] for path in batch_pairs[:, 0]
+        ]
+        right_indices = [
+            self.embedding_index_mapping[path] for path in batch_pairs[:, 1]
+        ]
+        left_embeddings = self.embeddings[left_indices]
+        right_embeddings = self.embeddings[right_indices]
+        return [left_embeddings, right_embeddings], np.array(batch_labels)
