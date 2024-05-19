@@ -46,12 +46,26 @@ def load_best_model_from_checkpoint(
 
         if model_file_1 in model_files:
             model_path = os.path.join(save_dir, model_file_1)
-            model = load_model(model_path)
+            model = load_model(model_path, compile=False)
+
+            model.compile(
+                optimizer="adam",
+                loss="categorical_crossentropy",
+                metrics=["accuracy"],
+            )
+
             print(f"Loaded model from {model_path}")
             return model, epoch, base_model_file_path, csv_logger_path
         elif model_file_2 in model_files:
             model_path = os.path.join(save_dir, model_file_2)
-            model = load_model(model_path)
+            model = load_model(model_path, compile=False)
+
+            model.compile(
+                optimizer="adam",
+                loss="categorical_crossentropy",
+                metrics=["accuracy"],
+            )
+
             print(f"Loaded model from {model_path}")
             return model, epoch, base_model_file_path, csv_logger_path
 
