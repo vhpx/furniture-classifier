@@ -8,8 +8,113 @@ from tensorflow.keras.models import load_model
 from sklearn.utils.class_weight import compute_class_weight
 import pandas as pd
 import numpy as np
-import json
+import warnings
+import fnmatch
 import re
+import csv
+
+
+def evaluate_models(model_dir, test_generator, sample_fraction):
+    evaluation_results = []
+
+    # Load or create evaluation.csv
+    evaluation_csv_path = os.path.join(model_dir, "evaluation.csv")
+    if os.path.exists(evaluation_csv_path):
+        with open(evaluation_csv_path, "r") as f:
+            reader = csv.reader(f)
+            next(reader)  # Skip the header
+            for row in reader:
+                evaluation_results.append(
+                    [
+                        int(row[0]),
+                        int(row[1]),
+                        float(row[2]),
+                        float(row[3]),
+                        row[4],
+                        float(row[5]),
+                    ]
+                )
+    else:
+        with open(evaluation_csv_path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(
+                ["index", "epoch", "accuracy", "loss", "path", "sample_fraction"]
+            )
+
+    # Sort the model files by their epoch numbers in descending order
+    model_files = sorted(
+        (f for f in os.listdir(model_dir) if f.endswith(".h5")),
+        key=lambda f: int(f.split("_")[1]) if f.split("_")[1].isdigit() else 0,
+        reverse=True,
+    )
+
+    print(f"Evaluating {len(model_files)} models in {model_dir}...")
+
+    # Try to load each model in turn until one is found that exists
+    for model_file in model_files:
+        model_path = os.path.join(model_dir, model_file)
+        if os.path.exists(model_path):
+            # Extract epoch and accuracy from the model file name
+            epoch = (
+                int(model_file.split("_")[1])
+                if model_file.split("_")[1].isdigit()
+                else 0
+            )
+            accuracy = (
+                float(model_file.split("_")[3])
+                if model_file.split("_")[3].replace(".", "", 1).isdigit()
+                else 0
+            )
+
+            # Check if the same epoch and accuracy are found in the file name
+            if any(
+                result[1] == epoch
+                and round(result[2], 4) == round(accuracy, 4)
+                and result[5] == sample_fraction
+                for result in evaluation_results
+            ):
+                print(
+                    f"Skipping evaluation for model {model_file} as it has already been evaluated."
+                )
+                continue
+
+            print(f"Loading model from {model_path}...")
+            model = load_model(model_path, compile=False)
+            model.compile(
+                optimizer="adam",
+                loss="categorical_crossentropy",
+                metrics=["accuracy"],
+            )
+
+            # Evaluate the model on the test set
+            print("Evaluating model...")
+            test_loss, test_acc = model.evaluate(test_generator)
+
+            new_model_file = f"epoch_{epoch}_va_{test_acc:.4f}_sf_{sample_fraction}.h5"
+            new_model_path = os.path.join(model_dir, new_model_file)
+            os.rename(model_path, new_model_path)
+
+            print(f"Renamed model file to {new_model_file}")
+
+            # Append the evaluation results
+            evaluation_results.append(
+                [
+                    len(evaluation_results),
+                    epoch,
+                    test_acc,
+                    test_loss,
+                    new_model_path,
+                    sample_fraction,
+                ]
+            )
+
+            # Write the evaluation results to a CSV file
+            print("Writing evaluation results to CSV file...")
+            with open(evaluation_csv_path, "a", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(evaluation_results[-1])
+
+    print("Done!")
 
 
 def load_best_model_from_checkpoint(
@@ -26,97 +131,83 @@ def load_best_model_from_checkpoint(
 
     model_files = os.listdir(save_dir)
 
+    best_va = 0
+    best_model_file = None
+    best_epoch = 0
+
+    for file in model_files:
+        match = re.match(r"epoch_(\d+)_va_(\d+\.\d+)", file)
+        if match:
+            epoch = int(match.group(1))
+            va = float(match.group(2))
+            if va > best_va:
+                best_va = va
+                best_model_file = file
+                best_epoch = epoch
+
     if not os.path.exists(csv_logger_path):
-        print("Warning: No training log file found. Using initial model.")
-        return initial_model, 0, base_model_file_path, csv_logger_path
+        print(
+            "Warning: No training log file found. Searching for best model in directory."
+        )
+    else:
+        log = pd.read_csv(csv_logger_path)
+        epoch_val_accuracy = log[["epoch", "val_accuracy"]].values
 
-    log = pd.read_csv(csv_logger_path)
-    epoch_val_accuracy = log[["epoch", "val_accuracy"]].values
+        # Sort by validation accuracy and then by epoch number
+        epoch_val_accuracy = epoch_val_accuracy[(-epoch_val_accuracy[:, 1]).argsort()]
 
-    # Sort by validation accuracy and then by epoch number
-    epoch_val_accuracy = epoch_val_accuracy[(-epoch_val_accuracy[:, 1]).argsort()]
+        for epoch, val_accuracy in epoch_val_accuracy:
+            # Convert epoch to integer
+            epoch = int(epoch)
 
-    for epoch, val_accuracy in epoch_val_accuracy:
-        # Convert epoch to integer
-        epoch = int(epoch)
+            # Check for all possible naming conventions
+            model_file_1 = f"epoch_{epoch+1}.h5"
+            model_file_2 = f"epoch_{epoch}_va_{val_accuracy:.4f}"
 
-        # Check for both possible naming conventions
-        model_file_1 = f"epoch_{epoch+1}.h5"
-        model_file_2 = f"epoch_{epoch}_va_{val_accuracy:.4f}.h5"
+            if model_file_1 in model_files:
+                model_path = os.path.join(save_dir, model_file_1)
+            elif any(
+                file.startswith(model_file_2) and file.endswith(".h5")
+                for file in model_files
+            ):
+                model_path = os.path.join(
+                    save_dir,
+                    next(
+                        file
+                        for file in model_files
+                        if file.startswith(model_file_2) and file.endswith(".h5")
+                    ),
+                )
+            else:
+                continue
 
-        if model_file_1 in model_files:
-            model_path = os.path.join(save_dir, model_file_1)
-            model = load_model(model_path)
+            model = load_model(model_path, compile=False)
+
+            model.compile(
+                optimizer="adam",
+                loss="categorical_crossentropy",
+                metrics=["accuracy"],
+            )
+
             print(f"Loaded model from {model_path}")
             return model, epoch, base_model_file_path, csv_logger_path
-        elif model_file_2 in model_files:
-            model_path = os.path.join(save_dir, model_file_2)
-            model = load_model(model_path)
-            print(f"Loaded model from {model_path}")
-            return model, epoch, base_model_file_path, csv_logger_path
+
+    # If no model was returned in the loop above, load the best available model
+    if best_model_file:
+        model_path = os.path.join(save_dir, best_model_file)
+        model = load_model(model_path, compile=False)
+
+        model.compile(
+            optimizer="adam",
+            loss="categorical_crossentropy",
+            metrics=["accuracy"],
+        )
+
+        print(f"Loaded model with best validation accuracy from {model_path}")
+        return model, best_epoch, base_model_file_path, csv_logger_path
 
     print("Warning: No model file found. Using initial model.")
     return initial_model, 0, base_model_file_path, csv_logger_path
-
-
-def get_best_model(root_dir, search_term=None):
-    best_model = None
-    best_val_accuracy = -np.inf
-    best_model_dir = None
-
-    print(f"Searching for best model in {root_dir}...")
-
-    # Walk through all directories under the root directory
-    for dirpath, dirnames, filenames in os.walk(root_dir):
-        # If a search term is provided, skip directories that do not include the search term
-        if search_term is not None and search_term not in dirpath:
-            continue
-
-        print(f"Checking directory {dirpath}...")
-
-        # Sort the model files by their epoch numbers in descending order
-        model_files = sorted(
-            (f for f in filenames if re.search(r"epoch_(\d+)(_va(\d+\.\d+))?.h5", f)),
-            key=lambda f: int(re.search(r"epoch_(\d+)(_va(\d+\.\d+))?.h5", f).group(1)),
-            reverse=True,
-        )
-
-        print(f"Found {len(model_files)} model files.")
-
-        # Try to load each model in turn until one is found that exists
-        for model_file in model_files:
-            model_path = os.path.join(dirpath, model_file)
-            if os.path.exists(model_path):
-                print(f"Loading model from {model_path}...")
-                model = load_model(model_path)
-                break
-        else:
-            # If no model file exists in the current directory, skip it
-            print(f"No valid model files in {dirpath}. Skipping...")
-            continue
-
-        # Extract the epoch number and validation accuracy from the file name
-        match = re.search(r"epoch_(\d+)(_va(\d+\.\d+))?.h5", model_file)
-        start_epoch = int(match.group(1))
-        val_accuracy = (
-            float(match.group(3))
-            if match.group(3)
-            else get_best_val_accuracy(os.path.join(dirpath, "training_log.csv"))
-        )
-        print(f"Starting epoch: {start_epoch}")
-        print(f"Validation accuracy: {val_accuracy}")
-
-        # If this model is better than the current best model, update the best model and its validation accuracy
-        if val_accuracy > best_val_accuracy:
-            print(f"New best model found with validation accuracy: {val_accuracy}")
-            best_model = model
-            best_val_accuracy = val_accuracy
-            best_model_dir = dirpath
-
-    print(
-        f"Best model found in {best_model_dir} with validation accuracy: {best_val_accuracy}"
-    )
-    return best_model, best_val_accuracy, best_model_dir
 
 
 def get_best_val_accuracy(csv_logger_path):
@@ -210,6 +301,7 @@ def train_model(
     model_conf=None,
     environment="LOCAL",
     start_epoch=0,
+    sample_fraction=None,
     early_stopping_patience=5,
     learning_rate_patience=2,
     epochs=100,
@@ -228,6 +320,11 @@ def train_model(
     # If the model configuration is None, print an error message and return
     if model_conf is None:
         print("No model configuration found")
+        return
+
+    # If there is no sample fraction, print an error message and return
+    if sample_fraction is None:
+        print("No sample fraction found")
         return
 
     print("Loading model from checkpoint...")
@@ -264,7 +361,7 @@ def train_model(
 
     # Define the checkpoint
     checkpoint = CustomModelCheckpoint(
-        filepath=f"{base_model_file_path}{{epoch}}_va_{{val_accuracy:.4f}}.h5",
+        filepath=f"{base_model_file_path}{{epoch}}_va_{{val_accuracy:.4f}}_sf_{sample_fraction}.h5",
         monitor="val_accuracy",
         verbose=1,
         save_best_only=True,
