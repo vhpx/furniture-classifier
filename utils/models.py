@@ -59,16 +59,19 @@ def evaluate_models(model_dir, test_generator, sample_fraction):
             reader = csv.reader(f)
             next(reader)  # Skip the header
             for row in reader:
-                evaluation_results.append(
-                    [
-                        int(row[0]),
-                        int(row[1]),
-                        float(row[2]),
-                        float(row[3]),
-                        row[4],
-                        float(row[5]),
-                    ]
-                )
+                if len(row) >= 6:
+                    evaluation_results.append(
+                        [
+                            int(row[0]),
+                            int(row[1]),
+                            float(row[2]),
+                            float(row[3]),
+                            row[4],
+                            float(row[5]),
+                        ]
+                    )
+                else:
+                    print(f"Skipping row due to insufficient columns: {row}")
     else:
         with open(evaluation_csv_path, "w", newline="") as f:
             writer = csv.writer(f)
@@ -89,29 +92,31 @@ def evaluate_models(model_dir, test_generator, sample_fraction):
     for model_file in model_files:
         model_path = os.path.join(model_dir, model_file)
         if os.path.exists(model_path):
-            # Extract epoch and accuracy from the model file name
-            epoch = (
-                int(model_file.split("_")[1])
-                if model_file.split("_")[1].isdigit()
-                else 0
-            )
-            accuracy = (
-                float(model_file.split("_")[3])
-                if model_file.split("_")[3].replace(".", "", 1).isdigit()
-                else 0
-            )
-
-            # Check if the same epoch and accuracy are found in the file name
-            if any(
-                result[1] == epoch
-                and round(result[2], 4) == round(accuracy, 4)
-                and result[5] == sample_fraction
-                for result in evaluation_results
+            model_parts = model_file.split("_")
+            epoch = 0  # Default value
+            if (
+                len(model_parts) >= 4
+                and model_parts[1].isdigit()
+                and model_parts[3].replace(".", "", 1).isdigit()
             ):
+                epoch = int(model_parts[1])
+                accuracy = float(model_parts[3])
+
+                # Check if the same epoch and accuracy are found in the file name
+                if any(
+                    result[1] == epoch
+                    and round(result[2], 4) == round(accuracy, 4)
+                    and result[5] == sample_fraction
+                    for result in evaluation_results
+                ):
+                    print(
+                        f"Skipping evaluation for model {model_file} as it has already been evaluated."
+                    )
+                    continue
+            else:
                 print(
-                    f"Skipping evaluation for model {model_file} as it has already been evaluated."
+                    f"Model file name {model_file} does not contain expected information. Proceeding without checks."
                 )
-                continue
 
             print(f"Loading model from {model_path}...")
             model = load_model(model_path, compile=False)
@@ -127,9 +132,16 @@ def evaluate_models(model_dir, test_generator, sample_fraction):
 
             new_model_file = f"epoch_{epoch}_va_{test_acc:.4f}_sf_{sample_fraction}.h5"
             new_model_path = os.path.join(model_dir, new_model_file)
-            os.rename(model_path, new_model_path)
 
-            print(f"Renamed model file to {new_model_file}")
+            # Check if the new file name already exists
+            if os.path.exists(new_model_path):
+                print(
+                    f"File {new_model_file} already exists. Removing duplicate file {model_file}."
+                )
+                os.remove(model_path)
+            else:
+                os.rename(model_path, new_model_path)
+                print(f"Renamed model file to {new_model_file}")
 
             # Append the evaluation results
             evaluation_results.append(
