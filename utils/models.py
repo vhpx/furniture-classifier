@@ -444,6 +444,11 @@ def train_model(
     print(f"Test loss: {test_loss}, Test accuracy: {test_acc}")
 
 
+def normalize_path(path):
+    # Convert backslashes to forward slashes and remove the leading dot and slash if present
+    return path.replace("\\", "/").replace("./", "")
+
+
 def get_combined_embedding(
     images, category_embedding_model, style_embedding_model, batch_size=32
 ):
@@ -486,7 +491,9 @@ def get_combined_embeddings(
         )  # Get paths from generator
 
     # Create the mapping from image paths to embedding indices
-    embedding_index_mapping = {path: i for i, path in enumerate(image_paths)}
+    embedding_index_mapping = {
+        normalize_path(path): i for i, path in enumerate(image_paths)
+    }
 
     if return_index_mapping:
         np.save(cache_file, all_embeddings)  # Save embeddings separately
@@ -498,27 +505,49 @@ def get_combined_embeddings(
         return result
 
 
-def multi_task_contrastive_loss(
-    y_true, y_pred, margin=1.0, category_weight=0.5, style_weight=0.5
-):
-    # Cast y_true to float32
-    y_true = K.cast(y_true, dtype="float32")
+def multi_task_contrastive_loss_wrapper(batch_size):
+    def multi_task_contrastive_loss(
+        y_true, y_pred, margin=1.0, category_weight=0.5, style_weight=0.5
+    ):
+        # Initialize embedding dimensions
+        CATEGORY_EMBEDDING_DIM = 128
+        STYLE_EMBEDDING_DIM = 256
 
-    category_loss = K.mean(
-        y_true[:, 0] * K.square(y_pred[:, 0])
-        + (1 - y_true[:, 0]) * K.square(K.maximum(margin - y_pred[:, 0], 0))
-    )
+        y_true = K.cast(y_true, dtype="float32")  # Cast labels to float32
 
-    style_loss = K.mean(
-        y_true[:, 1] * K.square(y_pred[:, 1])
-        + (1 - y_true[:, 1]) * K.square(K.maximum(margin - y_pred[:, 1], 0))
-    )
+        # Split the predictions into category and style distances
+        y_pred_category = y_pred[:, :CATEGORY_EMBEDDING_DIM]
+        y_pred_style = y_pred[:, CATEGORY_EMBEDDING_DIM:]
 
-    total_loss = category_weight * category_loss + style_weight * style_loss
-    return total_loss
+        # Conditionally reshape y_pred_style using tf.cond
+        y_pred_style = tf.cond(
+            STYLE_EMBEDDING_DIM > 0,
+            lambda: K.reshape(
+                y_pred_style, (batch_size, 1)
+            ),  # Reshape if style embeddings exist
+            lambda: y_pred_style,  # Otherwise, leave as is
+        )
+
+        # Calculate contrastive loss for category
+        category_loss = K.mean(
+            y_true[:, 0] * K.square(y_pred_category)
+            + (1 - y_true[:, 0]) * K.square(K.maximum(margin - y_pred_category, 0))
+        )
+
+        # Calculate contrastive loss for style
+        style_loss = K.mean(
+            y_true[:, 1] * K.square(y_pred_style)
+            + (1 - y_true[:, 1]) * K.square(K.maximum(margin - y_pred_style, 0))
+        )
+
+        # Combine the losses (with optional weighting)
+        total_loss = category_weight * category_loss + style_weight * style_loss
+        return total_loss
+
+    return multi_task_contrastive_loss
 
 
-def create_image_pairs(df, num_pairs_per_class=100):
+def create_image_pairs(df):
     pairs = []
     labels = []
 
@@ -532,14 +561,9 @@ def create_image_pairs(df, num_pairs_per_class=100):
             & (df["Label"] != label)
         ]
 
-        # Check sample sizes
-        num_pairs = min(num_pairs_per_class, len(similar_group), len(dissimilar_group))
-        if num_pairs < 2:
-            continue  # Skip to the next label if not enough samples
-
         # Positive Pairs (same category AND same style)
-        for i in range(num_pairs - 1):
-            for j in range(i + 1, num_pairs):
+        for i in range(len(similar_group) - 1):
+            for j in range(i + 1, len(similar_group)):
                 pairs.append(
                     (
                         similar_group.iloc[i]["Full_Path"],
@@ -549,7 +573,7 @@ def create_image_pairs(df, num_pairs_per_class=100):
                 labels.append([1, 1])
 
         # Negative Pairs (different category OR different style)
-        for _ in range(num_pairs):
+        for _ in range(len(similar_group)):
             pair = (
                 np.random.choice(similar_group["Full_Path"], 1)[0],
                 np.random.choice(dissimilar_group["Full_Path"], 1)[0],
@@ -593,16 +617,41 @@ class SiameseDataGenerator(Sequence):
             idx * self.batch_size : (idx + 1) * self.batch_size
         ]
         batch_labels = self.labels[idx * self.batch_size : (idx + 1) * self.batch_size]
-        # Make sure batch_labels is 2D array with shape (batch_size, 2)
         batch_labels = np.reshape(batch_labels, (-1, 2))
 
-        left_indices = [
-            self.embedding_index_mapping[path] for path in batch_pairs[:, 0]
-        ]
-        right_indices = [
-            self.embedding_index_mapping[path] for path in batch_pairs[:, 1]
-        ]
+        left_indices = []
+        right_indices = []
+        valid_pair_indices = []  # Keep track of valid pair indices
+
+        for i, pair in enumerate(batch_pairs):
+            try:
+                left_indices.append(self.embedding_index_mapping[pair[0]])
+                right_indices.append(self.embedding_index_mapping[pair[1]])
+                valid_pair_indices.append(i)  # Mark this pair as valid
+            except KeyError as e:
+                print(f"Warning: Missing embedding for image: {e}")
+                continue  # Skip this pair
+
+        # Handle the case where all pairs are invalid (empty batch)
+        if not valid_pair_indices:
+            # You can either return an empty batch or raise an error to stop training
+            return [np.array([]), np.array([])], np.array([])
+            # Or: raise ValueError("All pairs in the batch have missing embeddings.")
+
+        # Use valid pair indices to slice embeddings and labels
         left_embeddings = self.embeddings[left_indices]
         right_embeddings = self.embeddings[right_indices]
+        batch_labels = batch_labels[
+            valid_pair_indices
+        ]  # Update batch labels based on valid pair indices
 
-        return [left_embeddings, right_embeddings], batch_labels
+        print("[BF] Left Embeddings Shape:", left_embeddings.shape)
+        print("[BF] Right Embeddings Shape:", right_embeddings.shape)
+
+        # Reshape embeddings before returning
+        left_embeddings = np.reshape(left_embeddings, (-1, self.embeddings.shape[1]))
+        right_embeddings = np.reshape(right_embeddings, (-1, self.embeddings.shape[1]))
+
+        print("[AF] Left Embeddings Shape:", left_embeddings.shape)
+        print("[AF] Right Embeddings Shape:", right_embeddings.shape)
+        return [left_embeddings, right_embeddings], np.array(batch_labels)
