@@ -515,18 +515,13 @@ def multi_task_contrastive_loss_wrapper(batch_size):
 
         y_true = K.cast(y_true, dtype="float32")  # Cast labels to float32
 
-        # Split the predictions into category and style distances
+        # Split the predictions into category and style distances (adjust dimensions as needed)
         y_pred_category = y_pred[:, :CATEGORY_EMBEDDING_DIM]
         y_pred_style = y_pred[:, CATEGORY_EMBEDDING_DIM:]
 
-        # Conditionally reshape y_pred_style using tf.cond
-        y_pred_style = tf.cond(
-            STYLE_EMBEDDING_DIM > 0,
-            lambda: K.reshape(
-                y_pred_style, (batch_size, 1)
-            ),  # Reshape if style embeddings exist
-            lambda: y_pred_style,  # Otherwise, leave as is
-        )
+        # Reshape to ensure correct dimensions
+        y_pred_category = K.reshape(y_pred_category, (-1, 1))
+        y_pred_style = K.reshape(y_pred_style, (-1, 1))
 
         # Calculate contrastive loss for category
         category_loss = K.mean(
@@ -540,6 +535,11 @@ def multi_task_contrastive_loss_wrapper(batch_size):
             + (1 - y_true[:, 1]) * K.square(K.maximum(margin - y_pred_style, 0))
         )
 
+        # Ensure style_loss is zero when there are no style embeddings
+        style_loss = tf.where(
+            tf.equal(tf.shape(y_pred_style)[1], 0), tf.constant(0.0), style_loss
+        )  # Update here
+
         # Combine the losses (with optional weighting)
         total_loss = category_weight * category_loss + style_weight * style_loss
         return total_loss
@@ -547,7 +547,7 @@ def multi_task_contrastive_loss_wrapper(batch_size):
     return multi_task_contrastive_loss
 
 
-def create_image_pairs(df):
+def create_image_pairs(df, num_pairs=100):
     pairs = []
     labels = []
 
@@ -562,8 +562,8 @@ def create_image_pairs(df):
         ]
 
         # Positive Pairs (same category AND same style)
-        for i in range(len(similar_group) - 1):
-            for j in range(i + 1, len(similar_group)):
+        for i in range(min(len(similar_group) - 1, num_pairs)):
+            for j in range(i + 1, min(len(similar_group), num_pairs)):
                 pairs.append(
                     (
                         similar_group.iloc[i]["Full_Path"],
@@ -573,7 +573,7 @@ def create_image_pairs(df):
                 labels.append([1, 1])
 
         # Negative Pairs (different category OR different style)
-        for _ in range(len(similar_group)):
+        for _ in range(min(len(similar_group), num_pairs)):
             pair = (
                 np.random.choice(similar_group["Full_Path"], 1)[0],
                 np.random.choice(dissimilar_group["Full_Path"], 1)[0],
@@ -585,6 +585,9 @@ def create_image_pairs(df):
                 labels.append([1, 0])
             else:  # Different category, same or different style
                 labels.append([0, 0])
+
+        if len(pairs) >= num_pairs:
+            break
 
     return np.array(pairs), np.array(labels)
 
