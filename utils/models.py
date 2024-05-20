@@ -593,6 +593,7 @@ class SiameseDataGenerator(Sequence):
             idx * self.batch_size : (idx + 1) * self.batch_size
         ]
         batch_labels = self.labels[idx * self.batch_size : (idx + 1) * self.batch_size]
+        # Make sure batch_labels is 2D array with shape (batch_size, 2)
         batch_labels = np.reshape(batch_labels, (-1, 2))
 
         left_indices = [
@@ -603,4 +604,5 @@ class SiameseDataGenerator(Sequence):
         ]
         left_embeddings = self.embeddings[left_indices]
         right_embeddings = self.embeddings[right_indices]
-        return [left_embeddings, right_embeddings], np.array(batch_labels)
+
+        return [left_embeddings, right_embeddings], batch_labels
