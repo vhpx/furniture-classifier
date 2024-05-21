@@ -510,7 +510,7 @@ def get_combined_embeddings(
 
 
 def generate_kmeans_embeddings(
-    embedding_dim, dataframes, model, output_dir, sample_fraction
+    embedding_dim, dataframes, model, output_dir, sample_fraction, df
 ):
     os.makedirs(output_dir, exist_ok=True)  # Ensure the output directory exists
     embeddings_file_path = os.path.join(
@@ -519,6 +519,7 @@ def generate_kmeans_embeddings(
 
     if os.path.exists(embeddings_file_path):
         df_feature_vector = pd.read_csv(embeddings_file_path)
+        # df_feature_vector['Style'] = ''
     else:
         embeddings = {"Image_Path": [], "Category": []}
         for i in range(embedding_dim):
