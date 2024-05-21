@@ -70,7 +70,7 @@ Assignment 2
 ## Usage
 
 1.  **Data Preparation:**
-    *   Place your raw dataset `Furniture_Data.zip` in the root directory, or unpack them and place it in the `data/datasets/raw` directory to get ready for EDA Analysis and Data Preprocessing.
+    *   Place your raw dataset `Furniture_Data.zip` in the root directory (our pipeline automatically unzip and place it at the correct directory for you), or unpack them and place it in the `data/datasets/raw` directory to get ready for EDA Analysis and Data Preprocessing.
     *   Run the preprocessing scripts in the `pipeline` to clean, augment, and split the data.
     *   More details can be found in the notebooks.
 
