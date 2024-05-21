@@ -71,8 +71,9 @@ Assignment 2
 ## Usage
 
 1.  **Data Preparation:**
-    *   Place your raw dataset in the `data/datasets/raw` directory.
+    *   Place your raw dataset `Furniture_Data.zip` in the root directory, or unpack them and place it in the `data/datasets/raw` directory to get ready for EDA Analysis and Data Preprocessing.
     *   Run the preprocessing scripts in the `pipeline` to clean, augment, and split the data.
+    *   More details can be found in the notebooks.
 
 2.  **Model Training:**
     *   Execute the Jupyter notebooks in the `pipeline` or `notebooks` directory to train and evaluate different models for each task.

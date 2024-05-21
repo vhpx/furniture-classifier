@@ -803,8 +803,6 @@ def get_image_features(image_path, base_model):
 
 
 def load_model_and_data(model):
-    model.save("saved_model", overwrite=True)
-    model.save("embeddings_extract", overwrite=True)
     fe = tf.keras.models.load_model("embeddings_extract")
     return fe
 
