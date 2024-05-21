@@ -29,7 +29,6 @@ The project leverages Python, TensorFlow (version < 2.11, mainly to train our mo
 
 ```
 Assignment 2
-├── notebooks             # Jupyter notebooks for different stages of analysis
 ├── cache                 # Cached data for faster execution
 ├── data
 │   ├── datasets          # Original and processed image datasets
