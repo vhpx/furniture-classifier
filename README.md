@@ -83,6 +83,13 @@ Assignment 2
     *   Use the trained models to generate furniture recommendations based on input images.
     *   Refer to the notebooks for examples and guidance.
 
+## Trained models
+
+The trained models can be found in the `cache/models` directory. The models are saved in the TensorFlow SavedModel format and can be loaded using the `tf.keras.models.load_model` function. For the purpose of this project, we have trained the following models:
+-   **Classification Models:**
+    *   Custom CNN Models (best one for task 1 is available at `cache/models/t1_large_100_cnn/epoch_28_va_0.9785_sf_1.h5`)
+    *   ResNet50 (best one for task 3 is available at `cache/models/t3_large_100_resnet8/epoch_36_va_0.8139_sf_1.h5`)
+
 ## Disclaimer
 
 This project is developed for educational purposes. The code is not optimized for production use. The primary goal is to demonstrate the understanding and application of machine learning concepts and techniques for furniture recommendation.

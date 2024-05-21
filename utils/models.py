@@ -802,11 +802,6 @@ def get_image_features(image_path, base_model):
     return features
 
 
-def load_model_and_data(model):
-    fe = tf.keras.models.load_model("embeddings_extract")
-    return fe
-
-
 def process_image(ref_path, base_model, categories):
     with Image.open(ref_path) as ref:
         ref_processed, ref_class = image_classification(
