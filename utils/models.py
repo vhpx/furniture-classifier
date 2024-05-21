@@ -14,6 +14,7 @@ import warnings
 import fnmatch
 import re
 import csv
+from PIL import Image
 
 
 def find_best_model(directories):
@@ -505,6 +506,82 @@ def get_combined_embeddings(
         return result
 
 
+def model_embedding_k(embedding_dim, dataframes, model):
+    embedding_vector = {'Image_Path': [], 'Category': []}
+    for i in range(embedding_dim):
+        embedding_vector[f'Feature {i}'] = []
+
+    total_images = len(dataframes)
+    processed_images = 0
+
+    ## Iterate over the rows of the filtered dataframe
+    for i, row in dataframes.iterrows():
+        processed_images += 1
+        progress_percent = (processed_images / total_images) * 100
+        print(f'Processing image {processed_images}/{total_images} - {progress_percent:.2f}% complete', end='\r')
+
+        embedding_vector['Image_Path'].append(row['Full_Path'])
+        embedding_vector['Category'].append(row['Category'])
+        with Image.open(row['Full_Path']) as ref:
+            ref = ref.resize((350, 350))
+            ref_array = np.array(ref)  
+            ref_array = ref_array / 255.0 
+            ref_tensor = tf.convert_to_tensor(ref_array, dtype=tf.float32)
+            ref_tensor = tf.expand_dims(ref_tensor, axis=0)
+
+            ref_feature_vector = model.predict(ref_tensor, verbose=0)
+
+            for j, feature in enumerate(ref_feature_vector.reshape(-1)):
+                embedding_vector[f'Feature {j}'].append(feature)
+    
+
+    df_feature_vector = pd.DataFrame(embedding_vector)
+    df_feature_vector.to_csv("embeddings.csv", index=False)
+
+
+
+# Define the classify function
+def image_classification(image_path: str, model: tf.keras.Model, categories: list, verbose: bool = False, return_original: bool = True) -> tuple:
+    """
+    Uses a trained machine learning model to classify an image loaded from disk.
+
+    :param image_path: Path to the image to be classified.
+    :param model: Pre-loaded classifier model to be used.
+    :param verbose: Verbose output.
+    :param return_original: Whether to return the original image or the processed image.
+    :return: The original/processed image (PIL.image) and its classification (str).
+    """
+    
+    # Load the image from the given path
+    im_original = Image.open(image_path)
+    
+    # Resize the image to the target size
+    im_processed = im_original.resize((350, 350))
+    
+    # Convert the PIL image to a NumPy array and normalize pixel values to [0, 1]
+    im_array = np.array(im_processed) / 255.0
+    
+    # Convert the NumPy array to a TensorFlow tensor and add a batch dimension
+    im_tensor = tf.convert_to_tensor(im_array, dtype=tf.float32)
+    im_tensor = tf.expand_dims(im_tensor, axis=0)
+    
+    # Predict the class of the processed image
+    pred = model.predict(im_tensor, verbose=1 if verbose else 0)
+    
+    # Get the index of the predicted class
+    pred_class_idx = tf.argmax(pred, axis=1).numpy()[0]
+    
+    # Get the label of the predicted class
+    # Ensure that CLASS_LABELS is defined elsewhere in your code
+    pred_class_label = categories[pred_class_idx]
+    
+    # Return the original or processed image along with the predicted class label
+    if return_original:
+        return im_original, pred_class_label
+    else:
+        return im_processed, pred_class_label
+
+
 def multi_task_contrastive_loss_wrapper(batch_size):
     def multi_task_contrastive_loss(
         y_true, y_pred, margin=1.0, category_weight=0.5, style_weight=0.5
@@ -552,6 +629,8 @@ def create_image_pairs(df, num_pairs=100):
     labels = []
 
     unique_labels = df["Label"].unique()
+    print(unique_labels)
+    # i = 0
     for label in tqdm(unique_labels, desc="Creating image pairs"):
         category, style = label.split(",")
 
@@ -561,6 +640,9 @@ def create_image_pairs(df, num_pairs=100):
             & (df["Label"] != label)
         ]
 
+        # print(similar_group.shape, dissimilar_group.shape)
+
+        # chk = 0
         # Positive Pairs (same category AND same style)
         for i in range(min(len(similar_group) - 1, num_pairs)):
             for j in range(i + 1, min(len(similar_group), num_pairs)):
@@ -571,8 +653,10 @@ def create_image_pairs(df, num_pairs=100):
                     )
                 )
                 labels.append([1, 1])
+            # chk += 1
 
         # Negative Pairs (different category OR different style)
+        # chk2 = 0
         for _ in range(min(len(similar_group), num_pairs)):
             pair = (
                 np.random.choice(similar_group["Full_Path"], 1)[0],
@@ -585,10 +669,14 @@ def create_image_pairs(df, num_pairs=100):
                 labels.append([1, 0])
             else:  # Different category, same or different style
                 labels.append([0, 0])
-
+            # chk2 += 1
+        # print('before break')
+        # i += 1
         if len(pairs) >= num_pairs:
             break
-
+    # print(i)
+    # print(chk)
+    # print(chk2)
     return np.array(pairs), np.array(labels)
 
 
@@ -648,13 +736,13 @@ class SiameseDataGenerator(Sequence):
             valid_pair_indices
         ]  # Update batch labels based on valid pair indices
 
-        print("[BF] Left Embeddings Shape:", left_embeddings.shape)
-        print("[BF] Right Embeddings Shape:", right_embeddings.shape)
+        # print("[BF] Left Embeddings Shape:", left_embeddings.shape)
+        # print("[BF] Right Embeddings Shape:", right_embeddings.shape)
 
         # Reshape embeddings before returning
         left_embeddings = np.reshape(left_embeddings, (-1, self.embeddings.shape[1]))
         right_embeddings = np.reshape(right_embeddings, (-1, self.embeddings.shape[1]))
 
-        print("[AF] Left Embeddings Shape:", left_embeddings.shape)
-        print("[AF] Right Embeddings Shape:", right_embeddings.shape)
+        # print("[AF] Left Embeddings Shape:", left_embeddings.shape)
+        # print("[AF] Right Embeddings Shape:", right_embeddings.shape)
         return [left_embeddings, right_embeddings], np.array(batch_labels)

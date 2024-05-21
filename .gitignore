@@ -23,6 +23,9 @@ data/zipped
 task_1_q*.ipynb
 task_2_q*.ipynb
 task_3_q*.ipynb
+variables.*
+*.h5
+*.pb
 
 # Embeddings
 combined_embeddings.npy
