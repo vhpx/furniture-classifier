@@ -5,7 +5,7 @@
 This project tackles the development of an image-based furniture recommendation system for an e-commerce platform. It was created by:
 
 - Vo Hoang Phuc (s3926761)
-- Nguyen Cong Gia Hien (s38884308)
+- Nguyen Cong Gia Hien (s3884308)
 - Phan Trong Nguyen (s3927189)
 - Ho Quoc Thai (s3927025)
 
