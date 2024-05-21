@@ -5,6 +5,9 @@ from sklearn.utils.class_weight import compute_class_weight
 from tensorflow.keras import layers, Sequential, models
 from tensorflow.keras.models import load_model
 from tensorflow.keras.utils import Sequence
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import normalize
 from tqdm.notebook import tqdm
 import keras.backend as K
 import tensorflow as tf
@@ -506,7 +509,9 @@ def get_combined_embeddings(
         return result
 
 
-def model_embedding_k(embedding_dim, dataframes, model, output_dir, sample_fraction):
+def generate_kmeans_embeddings(
+    embedding_dim, dataframes, model, output_dir, sample_fraction, df
+):
     os.makedirs(output_dir, exist_ok=True)  # Ensure the output directory exists
     embeddings_file_path = os.path.join(
         output_dir, f"embeddings_sf_{sample_fraction}.csv"
@@ -514,10 +519,11 @@ def model_embedding_k(embedding_dim, dataframes, model, output_dir, sample_fract
 
     if os.path.exists(embeddings_file_path):
         df_feature_vector = pd.read_csv(embeddings_file_path)
+        # df_feature_vector['Style'] = ''
     else:
-        embedding_vector = {"Image_Path": [], "Category": []}
+        embeddings = {"Image_Path": [], "Category": []}
         for i in range(embedding_dim):
-            embedding_vector[f"Feature {i}"] = []
+            embeddings[f"Feature {i}"] = []
 
         total_images = len(dataframes)
         processed_images = 0
@@ -531,8 +537,8 @@ def model_embedding_k(embedding_dim, dataframes, model, output_dir, sample_fract
                 end="\r",
             )
 
-            embedding_vector["Image_Path"].append(row["Full_Path"])
-            embedding_vector["Category"].append(row["Category"])
+            embeddings["Image_Path"].append(row["Full_Path"])
+            embeddings["Category"].append(row["Category"])
             with Image.open(row["Full_Path"]) as ref:
                 ref = ref.resize((350, 350))
                 ref_array = np.array(ref)
@@ -543,9 +549,9 @@ def model_embedding_k(embedding_dim, dataframes, model, output_dir, sample_fract
                 ref_feature_vector = model.predict(ref_tensor, verbose=0)
 
                 for j, feature in enumerate(ref_feature_vector.reshape(-1)):
-                    embedding_vector[f"Feature {j}"].append(feature)
+                    embeddings[f"Feature {j}"].append(feature)
 
-        df_feature_vector = pd.DataFrame(embedding_vector)
+        df_feature_vector = pd.DataFrame(embeddings)
         df_feature_vector.to_csv(
             embeddings_file_path, index=False
         )  # Save to the specified output directory
@@ -765,3 +771,136 @@ class SiameseDataGenerator(Sequence):
         # print("[AF] Left Embeddings Shape:", left_embeddings.shape)
         # print("[AF] Right Embeddings Shape:", right_embeddings.shape)
         return [left_embeddings, right_embeddings], np.array(batch_labels)
+
+
+def get_image_features(image_path, base_model):
+    """
+    Loads an image, preprocesses it, and extracts features using the provided base model.
+
+    Args:
+        image_path (str): Path to the image file.
+        base_model: The feature extraction model (e.g., Keras model, PyTorch model).
+
+    Returns:
+        np.ndarray: Extracted feature vector.
+    """
+
+    img = Image.open(image_path)
+
+    # Preprocessing steps
+    img = img.resize((350, 350))  # Resize to a standard size (adjust as needed)
+    img_array = np.array(img) / 255.0  # Normalize pixel values to [0, 1]
+    img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
+
+    # Feature extraction
+    features = base_model.predict(img_array, verbose=0)
+
+    # Handle different feature output formats
+    if len(features.shape) > 2:  # Flatten if features have multiple dimensions
+        features = features.reshape(features.shape[0], -1)
+
+    return features
+
+
+def load_model_and_data(model):
+    fe = tf.keras.models.load_model("embeddings_extract")
+    return fe
+
+
+def process_image(ref_path, base_model, categories):
+    with Image.open(ref_path) as ref:
+        ref_processed, ref_class = image_classification(
+            f"{ref_path}", base_model, return_original=False, categories=categories
+        )
+    return ref_processed, ref_class
+
+
+def get_feature_vector(ref_processed, fe):
+    ref_processed = np.squeeze(ref_processed)
+    ref_feature_vector = fe.predict(tf.expand_dims(ref_processed, axis=0), verbose=0)
+    ref_feature_vector = ref_feature_vector.astype(float)
+    ref_feature_vector = ref_feature_vector.reshape(1, -1)
+    return ref_feature_vector
+
+
+def get_recommendation(embeddings, ref_class, ref_feature_vector, model):
+    recommendation = embeddings[embeddings["Category"] == ref_class]
+    model.fit(recommendation.drop(["Image_Path", "Category"], axis="columns").values)
+    ref_cluster = model.predict(ref_feature_vector)
+    ref_cluster_indices = np.where(model.labels_ == ref_cluster)[0]
+    recommendation = recommendation.iloc[ref_cluster_indices]
+    return recommendation
+
+
+def exclude_original_image(recommendation, ref_path):
+    recommendation = recommendation[recommendation["Image_Path"] != ref_path]
+    return recommendation
+
+
+def rank_and_recommend(recommendation, ref_feature_vector, recommendation_images):
+    cosine_similarities = cosine_similarity(
+        ref_feature_vector,
+        recommendation.drop(["Image_Path", "Category"], axis="columns"),
+    )
+    sorted_ref_cluster_indices = np.argsort(-cosine_similarities.flatten())
+    top_ref_cluster_indices = sorted_ref_cluster_indices[:recommendation_images]
+    recommendation = recommendation.iloc[top_ref_cluster_indices]
+    return recommendation
+
+
+def process_image_with_labels(ref_path, base_model, categories):
+    with Image.open(ref_path) as ref:
+        true_label = ref_path.split("/")[-3]
+        _, predicted_label = image_classification(ref_path, base_model, categories)
+        ref_features = get_image_features(ref_path, base_model)
+        ref_features = normalize(ref_features)
+    return ref, true_label, predicted_label, ref_features
+
+
+def plot_image(ax, ref, true_label, predicted_label, i):
+    # Ensure the image data is a numpy array with dtype float or uint8
+    if isinstance(ref, np.ndarray):
+        if ref.dtype != np.float and ref.dtype != np.uint8:
+            ref = ref.astype(np.float)
+    else:
+        ref = np.array(ref, dtype=np.float)
+
+    ax[i][0].imshow(ref)
+    ax[i][0].set_title(
+        f"Ground Truth: {true_label}\nPrediction: {predicted_label}", fontsize=12
+    )
+    is_correct = true_label == predicted_label
+    color = "green" if is_correct else "red"
+    text = "CORRECT PREDICTION" if is_correct else "INCORRECT PREDICTION"
+    ax[i][0].text(
+        0.5,
+        -0.08,
+        text,
+        horizontalalignment="center",
+        verticalalignment="center_baseline",
+        transform=ax[i][0].transAxes,
+        fontsize=12,
+        color=color,
+        weight="bold",
+    )
+    ax[i][0].axis("off")
+
+
+def process_and_plot_retrieved_images(ax, results, base_model, i, ref_features):
+    for j, rec_path in enumerate(results[i], start=1):
+        with Image.open(rec_path) as rec:
+            rec_features = get_image_features(rec_path, base_model)
+            rec_features = normalize(rec_features)
+            similarity = cosine_similarity(ref_features, rec_features)[0][0] * 100
+            similarity_text = f"{similarity:.20f}%"
+            ax[i][j].imshow(rec)
+            ax[i][j].text(
+                0.5,
+                -0.08,
+                similarity_text,
+                horizontalalignment="center",
+                verticalalignment="center_baseline",
+                transform=ax[i][j].transAxes,
+                fontsize=10,
+            )
+            ax[i][j].axis("off")
