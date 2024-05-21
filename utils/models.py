@@ -506,42 +506,61 @@ def get_combined_embeddings(
         return result
 
 
-def model_embedding_k(embedding_dim, dataframes, model):
-    embedding_vector = {'Image_Path': [], 'Category': []}
-    for i in range(embedding_dim):
-        embedding_vector[f'Feature {i}'] = []
+def model_embedding_k(embedding_dim, dataframes, model, output_dir, sample_fraction):
+    os.makedirs(output_dir, exist_ok=True)  # Ensure the output directory exists
+    embeddings_file_path = os.path.join(
+        output_dir, f"embeddings_sf_{sample_fraction}.csv"
+    )
 
-    total_images = len(dataframes)
-    processed_images = 0
+    if os.path.exists(embeddings_file_path):
+        df_feature_vector = pd.read_csv(embeddings_file_path)
+    else:
+        embedding_vector = {"Image_Path": [], "Category": []}
+        for i in range(embedding_dim):
+            embedding_vector[f"Feature {i}"] = []
 
-    ## Iterate over the rows of the filtered dataframe
-    for i, row in dataframes.iterrows():
-        processed_images += 1
-        progress_percent = (processed_images / total_images) * 100
-        print(f'Processing image {processed_images}/{total_images} - {progress_percent:.2f}% complete', end='\r')
+        total_images = len(dataframes)
+        processed_images = 0
 
-        embedding_vector['Image_Path'].append(row['Full_Path'])
-        embedding_vector['Category'].append(row['Category'])
-        with Image.open(row['Full_Path']) as ref:
-            ref = ref.resize((350, 350))
-            ref_array = np.array(ref)  
-            ref_array = ref_array / 255.0 
-            ref_tensor = tf.convert_to_tensor(ref_array, dtype=tf.float32)
-            ref_tensor = tf.expand_dims(ref_tensor, axis=0)
+        ## Iterate over the rows of the filtered dataframe
+        for i, row in dataframes.iterrows():
+            processed_images += 1
+            progress_percent = (processed_images / total_images) * 100
+            print(
+                f"Processing image {processed_images}/{total_images} - {progress_percent:.2f}% complete",
+                end="\r",
+            )
 
-            ref_feature_vector = model.predict(ref_tensor, verbose=0)
+            embedding_vector["Image_Path"].append(row["Full_Path"])
+            embedding_vector["Category"].append(row["Category"])
+            with Image.open(row["Full_Path"]) as ref:
+                ref = ref.resize((350, 350))
+                ref_array = np.array(ref)
+                ref_array = ref_array / 255.0
+                ref_tensor = tf.convert_to_tensor(ref_array, dtype=tf.float32)
+                ref_tensor = tf.expand_dims(ref_tensor, axis=0)
 
-            for j, feature in enumerate(ref_feature_vector.reshape(-1)):
-                embedding_vector[f'Feature {j}'].append(feature)
-    
+                ref_feature_vector = model.predict(ref_tensor, verbose=0)
 
-    df_feature_vector = pd.DataFrame(embedding_vector)
-    df_feature_vector.to_csv("embeddings.csv", index=False)
+                for j, feature in enumerate(ref_feature_vector.reshape(-1)):
+                    embedding_vector[f"Feature {j}"].append(feature)
 
+        df_feature_vector = pd.DataFrame(embedding_vector)
+        df_feature_vector.to_csv(
+            embeddings_file_path, index=False
+        )  # Save to the specified output directory
+
+    return df_feature_vector
 
 
 # Define the classify function
-def image_classification(image_path: str, model: tf.keras.Model, categories: list, verbose: bool = False, return_original: bool = True) -> tuple:
+def image_classification(
+    image_path: str,
+    model: tf.keras.Model,
+    categories: list,
+    verbose: bool = False,
+    return_original: bool = True,
+) -> tuple:
     """
     Uses a trained machine learning model to classify an image loaded from disk.
 
@@ -551,30 +570,30 @@ def image_classification(image_path: str, model: tf.keras.Model, categories: lis
     :param return_original: Whether to return the original image or the processed image.
     :return: The original/processed image (PIL.image) and its classification (str).
     """
-    
+
     # Load the image from the given path
     im_original = Image.open(image_path)
-    
+
     # Resize the image to the target size
     im_processed = im_original.resize((350, 350))
-    
+
     # Convert the PIL image to a NumPy array and normalize pixel values to [0, 1]
     im_array = np.array(im_processed) / 255.0
-    
+
     # Convert the NumPy array to a TensorFlow tensor and add a batch dimension
     im_tensor = tf.convert_to_tensor(im_array, dtype=tf.float32)
     im_tensor = tf.expand_dims(im_tensor, axis=0)
-    
+
     # Predict the class of the processed image
     pred = model.predict(im_tensor, verbose=1 if verbose else 0)
-    
+
     # Get the index of the predicted class
     pred_class_idx = tf.argmax(pred, axis=1).numpy()[0]
-    
+
     # Get the label of the predicted class
     # Ensure that CLASS_LABELS is defined elsewhere in your code
     pred_class_label = categories[pred_class_idx]
-    
+
     # Return the original or processed image along with the predicted class label
     if return_original:
         return im_original, pred_class_label
