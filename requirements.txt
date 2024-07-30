@@ -1,7 +1,7 @@
 pandas
 numpy
 matplotlib
-tensorflow<2.11
+tensorflow<2.18
 tensorflow_hub
 seaborn
 scikit-learn
